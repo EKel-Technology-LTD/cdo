@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomLabel xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Orchard_Agent_Acceptance</fullName>
+    <language>en_US</language>
+    <protected>false</protected>
+    <shortDescription>CDO-7: Verify the five reference agents through the normal CDO delivery workflow</shortDescription>
+    <value>Orchard reference agents verified</value>
+</CustomLabel>
