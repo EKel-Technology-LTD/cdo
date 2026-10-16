@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Required to setup some of the basics of demo orgs and tools.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>CDO Base Permission</label>
+</PermissionSet>

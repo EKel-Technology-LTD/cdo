@@ -3,5 +3,7 @@
     <fullName>Hotfix_Verified__c</fullName>
     <defaultValue>false</defaultValue>
     <label>Hotfix Verified</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
     <type>Checkbox</type>
 </CustomField>

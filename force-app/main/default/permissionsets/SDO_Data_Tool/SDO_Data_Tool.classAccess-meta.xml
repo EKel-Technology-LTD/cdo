@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet>
+    <classAccesses>
+        <apexClass>NXDO__DataTool_Utilities</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>NXDO__DataTool_Utilities_MockResponse</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>NXDO__DataTool_Utilities_Test</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+</PermissionSet>

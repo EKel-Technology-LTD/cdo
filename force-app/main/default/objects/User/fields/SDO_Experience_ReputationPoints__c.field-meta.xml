@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SDO_Experience_ReputationPoints__c</fullName>
+    <description>WHAT: Used in NextGen processes to map to Network Member reputation points. This is only used on deployment from CCI and does not map back from network member with reputation point updates. WHO: Jory Dean WHEN: April 2023</description>
+    <externalId>false</externalId>
+    <label>Experience Reputation Points</label>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

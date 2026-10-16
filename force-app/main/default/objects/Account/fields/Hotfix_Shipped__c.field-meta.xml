@@ -3,5 +3,7 @@
     <fullName>Hotfix_Shipped__c</fullName>
     <defaultValue>false</defaultValue>
     <label>Hotfix Shipped</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
     <type>Checkbox</type>
 </CustomField>

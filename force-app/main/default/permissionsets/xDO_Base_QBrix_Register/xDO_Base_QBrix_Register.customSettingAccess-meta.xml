@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet>
+    <customSettingAccesses>
+        <enabled>true</enabled>
+        <name>xDO_Tool_ProcessAutomationSwitch__c</name>
+    </customSettingAccesses>
+</PermissionSet>

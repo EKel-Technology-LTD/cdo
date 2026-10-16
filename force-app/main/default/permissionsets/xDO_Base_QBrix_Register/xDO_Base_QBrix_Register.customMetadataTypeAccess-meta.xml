@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>xDO_Base_QBrix_Register__mdt</name>
+    </customMetadataTypeAccesses>
+</PermissionSet>

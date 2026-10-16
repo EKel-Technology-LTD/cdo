@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>qbrix-0-org-beacon</label>
+    <protected>true</protected>
+    <values>
+        <field>xDO_Content_Type__c</field>
+        <value xsi:type="xsd:string">Metadata_and_Record_Data</value>
+    </values>
+    <values>
+        <field>xDO_Description__c</field>
+        <value xsi:type="xsd:string">WHO: Radif Masud
+                        WHAT: This brix is setting up outbound push notifications for demo orgs so we better telemetry on the org shape.
+                        WHEN: October 2026</value>
+    </values>
+    <values>
+        <field>xDO_Documentation_Link__c</field>
+        <value xsi:type="xsd:string">https://qlabs-org.my.site.com/qverse/s/</value>
+    </values>
+    <values>
+        <field>xDO_Publisher__c</field>
+        <value xsi:type="xsd:string">Radif Masud</value>
+    </values>
+    <values>
+        <field>xDO_Repository_URL__c</field>
+        <value xsi:type="xsd:string">https://github.com/sfdc-qbranch-emu/qbrix-0-org-beacon</value>
+    </values>
+    <values>
+        <field>xDO_Type__c</field>
+        <value xsi:type="xsd:string">Base xDO Component</value>
+    </values>
+    <values>
+        <field>xDO_Version__c</field>
+        <value xsi:type="xsd:string">d848d78dbe84fc817ec68c54b508d1d0297ede33</value>
+    </values>
+</CustomMetadata>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>QBrix-1-xDO-Saleo-Base</label>
+    <protected>true</protected>
+    <values>
+        <field>xDO_Content_Type__c</field>
+        <value xsi:type="xsd:string">Metadata_and_Record_Data</value>
+    </values>
+    <values>
+        <field>xDO_Description__c</field>
+        <value xsi:type="xsd:string">WHO: Jory Dean
+                        WHAT: This brix deploys necessary metadata needed for Saleo Chrome plugins to work against orgs.
+                        WHEN: March 2026</value>
+    </values>
+    <values>
+        <field>xDO_Documentation_Link__c</field>
+        <value xsi:type="xsd:string">https://www.qverse.com</value>
+    </values>
+    <values>
+        <field>xDO_Publisher__c</field>
+        <value xsi:type="xsd:string">Jory Dean</value>
+    </values>
+    <values>
+        <field>xDO_Repository_URL__c</field>
+        <value xsi:type="xsd:string">https://github.com/sfdc-qbranch-emu/QBrix-1-xDO-Saleo-Base</value>
+    </values>
+    <values>
+        <field>xDO_Type__c</field>
+        <value xsi:type="xsd:string">Base xDO Component</value>
+    </values>
+    <values>
+        <field>xDO_Version__c</field>
+        <value xsi:type="xsd:string">b1ce6078e0da1d18d8e7072920df84d7fb32d626</value>
+    </values>
+</CustomMetadata>

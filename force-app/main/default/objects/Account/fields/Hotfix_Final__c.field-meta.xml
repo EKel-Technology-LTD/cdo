@@ -3,5 +3,7 @@
     <fullName>Hotfix_Final__c</fullName>
     <defaultValue>false</defaultValue>
     <label>Hotfix Final</label>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
     <type>Checkbox</type>
 </CustomField>
