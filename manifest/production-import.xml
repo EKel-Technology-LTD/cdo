@@ -336,8 +336,6 @@
         <members>DataUseLegalBasis-Data Use Legal Basis Layout</members>
         <members>DataUsePurpose-Data Use Purpose Layout</members>
         <members>DelegatedAccount-External Managed Account Layout</members>
-        <members>DevopsPipeline-DevOps Pipeline Layout</members>
-        <members>DevopsProject-DevOps Project Layout</members>
         <members>DiagnosticSummary-Diagnostic Summary Layout</members>
         <members>DiagnosticSummaryDetail-Diagnostic Summary Detail Layout</members>
         <members>DigitalVerfSetupDetail-Digital Verification Setup Detail Layout</members>
@@ -478,8 +476,6 @@
         <members>Knowledge__kav-Knowledge Layout</members>
         <members>Lead-Lead Layout</members>
         <members>LegalEntity-Legal Entity Layout</members>
-        <members>LiveChatTranscriptActive-Chat Transcript %28In Progress%29 Layout</members>
-        <members>LiveChatTranscriptWaiting-Chat Transcript %28Waiting%29 Layout</members>
         <members>LoanApplicant-Loan Applicant Layout</members>
         <members>LoanApplicantAddress-Loan Applicant Address Layout</members>
         <members>LoanApplicantAsset-Loan Applicant Asset Layout</members>
@@ -764,7 +760,6 @@
         <members>WorkCapacityAvailability-Work Capacity Availability Layout</members>
         <members>WorkCapacityLimit-Work Capacity Limit Layout</members>
         <members>WorkCapacityUsage-Work Capacity Usage Layout</members>
-        <members>WorkItem-Work Item Layout</members>
         <members>WorkOrder-Work Order Layout</members>
         <members>WorkOrderLineItem-Work Order Line Item Layout</members>
         <members>WorkPlan-Work Plan Layout</members>
@@ -784,7 +779,6 @@
         <name>Layout</name>
     </types>
     <types>
-        <members>AccessDevOpsCenterNamedCredentials</members>
         <members>CDO_Base_Permission</members>
         <members>CGAnalytics_Admin_PSG</members>
         <members>CGAnalytics_User_PSG</members>
