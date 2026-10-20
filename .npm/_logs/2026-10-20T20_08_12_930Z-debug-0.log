@@ -1,0 +1,17 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.8
+2 info using node@v22.23.2
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/workspace/.npmrc
+5 silly config load:file:/usr/local/etc/npmrc
+6 verbose title npm run test:unit --runInBand --testPathPattern discountApprovalPanel
+7 verbose argv "run" "test:unit" "--" "--runInBand" "--testPathPattern" "discountApprovalPanel"
+8 verbose logfile logs-max:10 dir:/workspace/.npm/_logs/2026-10-20T20_08_12_930Z-
+9 verbose logfile /workspace/.npm/_logs/2026-10-20T20_08_12_930Z-debug-0.log
+10 silly logfile done cleaning log files
+11 verbose cwd /workspace
+12 verbose os Linux 6.18.54-cloudflare-microvm-2026.9.16
+13 verbose node v22.23.2
+14 verbose npm  v10.9.8
+15 verbose exit 127
+16 verbose code 127
