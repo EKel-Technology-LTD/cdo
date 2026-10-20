@@ -239,9 +239,9 @@ private with sharing class DiscountApprovalTest {
             catch (AuraHandledException error) { Assert.isTrue(error.getMessage().contains('record and field access'),'No data leakage'); }
         }Test.stopTest();
     }
-    @IsTest static void bulk200InsertAndUpdate() { bulk(200); }
-    @IsTest static void bulk251AcrossTriggerChunks() { bulk(251); }
-    private static void bulk(Integer count) {
+    @IsTest static void bulk200InsertAndUpdate() { bulkOpportunities(200); }
+    @IsTest static void bulk251AcrossTriggerChunks() { bulkOpportunities(251); }
+    private static void bulkOpportunities(Integer count) {
         Opportunity seed=DiscountApprovalTestDataFactory.opportunity(25,100000);List<Opportunity> deals=new List<Opportunity>();
         for (Integer i=0;i<count;i++) { Opportunity deal=seed.clone(false,true,false,false);deal.Name='Bulk '+i;deals.add(deal); }
         Test.startTest();insert deals;

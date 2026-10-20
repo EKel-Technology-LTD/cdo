@@ -30,7 +30,7 @@ for p in (B/'classes').glob('Discount*.cls'):
  check(p.name+' sharing declared','with sharing class' in p.read_text() or 'without sharing class' in p.read_text())
 for p in (B/'triggers').glob('*Discount*.trigger'):check(p.name+' metadata paired',Path(str(p)+'-meta.xml').exists())
 tests=(B/'classes/DiscountApprovalTest.cls').read_text()
-check('200 and 251 bulk test fixtures present','bulk(200)' in tests and 'bulk(251)' in tests)
+check('200 and 251 bulk test fixtures present','bulkOpportunities(200)' in tests and 'bulkOpportunities(251)' in tests)
 service=(B/'classes/DiscountApprovalService.cls').read_text()
 check('Owner and submitter checks present','opportunity.OwnerId == caller || cycle.Submitted_By__c == caller' in service)
 check('UI read uses user-mode security','WITH USER_MODE' in service)

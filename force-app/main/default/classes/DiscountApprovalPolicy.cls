@@ -14,9 +14,9 @@ public with sharing class DiscountApprovalPolicy {
         if (opportunity.Amount == null) return 0;
         if (rates == null) {
             rates = new Map<String, Decimal>();
-            for (CurrencyType currency : [SELECT IsoCode, ConversionRate, IsCorporate FROM CurrencyType WITH SYSTEM_MODE]) {
-                rates.put(currency.IsoCode, currency.ConversionRate);
-                if (currency.IsCorporate) corporate = currency.IsoCode;
+            for (CurrencyType currencyType : [SELECT IsoCode, ConversionRate, IsCorporate FROM CurrencyType WITH SYSTEM_MODE]) {
+                rates.put(currencyType.IsoCode, currencyType.ConversionRate);
+                if (currencyType.IsCorporate) corporate = currencyType.IsoCode;
             }
         }
         if (datedRates == null) {
