@@ -18,7 +18,10 @@ public without sharing class DiscountApprovalHandler {
     private static Boolean changed(Opportunity current, Opportunity previous, Boolean includeReason) {
         return previous == null || current.Discount_Percent__c != previous.Discount_Percent__c ||
             current.Amount != previous.Amount || current.CurrencyIsoCode != previous.CurrencyIsoCode ||
-            current.OwnerId != previous.OwnerId || (includeReason && current.Discount_Reason__c != previous.Discount_Reason__c);
+            current.CloseDate != previous.CloseDate || current.OwnerId != previous.OwnerId || (includeReason && current.Discount_Reason__c != previous.Discount_Reason__c);
+    }
+    private static Boolean requiresApproval(Opportunity record) {
+        return record.Discount_Percent__c != null && record.Discount_Percent__c >= 10;
     }
     private static Boolean recalculate(Opportunity current, Opportunity previous) {
         return changed(current, previous, true) && !(previous != null &&
@@ -47,13 +50,15 @@ public without sharing class DiscountApprovalHandler {
                     }
                 }
             }
-            if (old != null && wonStages.contains(old.StageName) && changed(record,old,true)) {
+            if (old != null && wonStages.contains(old.StageName) &&
+                (requiresApproval(old) || requiresApproval(record)) && changed(record,old,true)) {
                 record.addError('Reopen the Opportunity before changing discount terms on a Closed Won deal.');
                 // Do not replace the recovery instruction with the later pending-approval error.
                 continue;
             }
             if (recalculate(record,old)) {
-                String route = DiscountApprovalPolicy.route(record.Discount_Percent__c,DiscountApprovalPolicy.corporateAmount(record));
+                String route = requiresApproval(record)
+                    ? DiscountApprovalPolicy.route(record.Discount_Percent__c,DiscountApprovalPolicy.corporateAmount(record)) : null;
                 Id manager = users.get(record.OwnerId)?.ManagerId;
                 if (route != null && manager == null) record.addError('The Opportunity owner has no manager, so a discount of 10% or more cannot be submitted.');
                 record.Discount_Approval_Status__c = route == null ? 'Not Required' : 'Pending';

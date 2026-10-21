@@ -42,4 +42,14 @@ check('LWC Jest tests included',(B/'lwc/discountApprovalPanel/__tests__/discount
 for name in ['Opportunity_Sales_Record_Page','Deal_Desk_Opportunity_Record_Page']:
  p=B/'flexipages'/f'{name}.flexipage-meta.xml';E.parse(p);check(name+' contains approval panel','c:discountApprovalPanel' in p.read_text())
 check('Deal Desk app assignment',value(read('applications/Deal_Desk.app-meta.xml'),'actionOverrides/content')=='Deal_Desk_Opportunity_Record_Page')
+handler=(B/'classes/DiscountApprovalHandler.cls').read_text()
+changed=handler.split('private static Boolean changed(',1)[1].split('private static Boolean requiresApproval',1)[0]
+check('CloseDate invalidates approval in shared before/after predicate','current.CloseDate != previous.CloseDate' in changed)
+check('Closed Won guard checks both old and new approval threshold','(requiresApproval(old) || requiresApproval(record)) && changed(record,old,true)' in handler)
+check('Threshold is null safe and inclusive at ten','record.Discount_Percent__c != null && record.Discount_Percent__c >= 10' in handler)
+check('Conversion skipped below threshold','String route = requiresApproval(record)\n                    ? DiscountApprovalPolicy.route(record.Discount_Percent__c,DiscountApprovalPolicy.corporateAmount(record)) : null;' in handler)
+check('Both trigger phases use same invalidation predicate',handler.count('if (recalculate(record,old))')==2)
+check('Pending and approved cycles superseded',"Status__c IN ('Pending','Approved')" in handler and "cycle.Status__c = 'Superseded'" in handler)
+for method in ['closedBlankDiscountStaysEditable','closedBelowTenStaysEditable','closedDiscountCannotCrossThreshold','closedApprovedDiscountCannotDropBelowTen','closeDateInvalidatesPending','closeDateInvalidatesApproved']:
+ check(method+' regression delivered','@IsTest static void '+method+'()' in tests)
 print('\n'.join('PASS '+name for name in checks));print(f'{len(checks)} source contract checks passed. Runtime acceptance NOT verified.')

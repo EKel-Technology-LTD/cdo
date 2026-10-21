@@ -165,6 +165,59 @@ private with sharing class DiscountApprovalTest {
         Test.stopTest();
         Assert.areEqual('Pending',[SELECT Discount_Approval_Status__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE].Discount_Approval_Status__c,'Separate reopen permits terms change and requires approval');
     }
+    @IsTest static void closedBlankDiscountStaysEditable() { assertClosedLowDiscountEditable(null); }
+    @IsTest static void closedBelowTenStaysEditable() { assertClosedLowDiscountEditable(9.99); }
+    private static void assertClosedLowDiscountEditable(Decimal discount) {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(discount,50000);
+        deal.StageName='Closed Won';insert as system deal;
+        Test.startTest();
+        deal.Amount=60000;deal.OwnerId=DiscountApprovalTestDataFactory.persona('newowner').Id;
+        deal.CloseDate=deal.CloseDate.addDays(1);update as system deal;
+        Test.stopTest();
+        Opportunity saved=[SELECT Amount,OwnerId,Discount_Approval_Status__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE];
+        Assert.areEqual(60000,saved.Amount,'Closed low discount amount remains editable');
+        Assert.areEqual(deal.OwnerId,saved.OwnerId,'Closed low discount owner remains editable');
+        Assert.areEqual('Not Required',saved.Discount_Approval_Status__c,'No approval required');
+        Assert.areEqual(0,[SELECT COUNT() FROM Discount_Approval__c WHERE Opportunity__c=:deal.Id WITH SYSTEM_MODE],'No audit cycle');
+    }
+    @IsTest static void closedDiscountCannotCrossThreshold() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(9.99,50000);
+        deal.StageName='Closed Won';insert as system deal;
+        Test.startTest();deal.Discount_Percent__c=10;deal.Discount_Reason__c='New terms';
+        assertValidation(Database.update(deal,false,AccessLevel.SYSTEM_MODE),'Reopen the Opportunity before changing discount terms on a Closed Won deal.');
+        Test.stopTest();
+    }
+    @IsTest static void closedApprovedDiscountCannotDropBelowTen() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(10,50000);insert as system deal;
+        System.runAs(DiscountApprovalTestDataFactory.persona('manager')) { DiscountApprovalService.decide(DiscountApprovalTestDataFactory.pending(deal.Id).Id,'Approved','OK'); }
+        deal.StageName='Closed Won';update as system deal;
+        Test.startTest();deal.Discount_Percent__c=null;
+        assertValidation(Database.update(deal,false,AccessLevel.SYSTEM_MODE),'Reopen the Opportunity before changing discount terms on a Closed Won deal.');
+        Test.stopTest();
+    }
+    @IsTest static void closeDateInvalidatesPending() { assertCloseDateReroutes(false); }
+    @IsTest static void closeDateInvalidatesApproved() { assertCloseDateReroutes(true); }
+    private static void assertCloseDateReroutes(Boolean approveFirst) {
+        seedCurrencyRates();
+        // Keep the existing USD fixture; inject transaction-local non-corporate dated rates.
+        DiscountApprovalPolicy.corporate='EUR';
+        DiscountApprovalPolicy.datedRates.put('USD',new List<SObject>{
+            datedRate('2026-07-01',null,1),datedRate('2026-01-01','2026-07-01',2)});
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(25,600000);
+        deal.CloseDate=Date.newInstance(2026,6,30);insert as system deal;
+        Discount_Approval__c prior=DiscountApprovalTestDataFactory.pending(deal.Id);
+        Assert.areEqual('Deal Desk',prior.Route__c,'300000 corporate before boundary');
+        if (approveFirst) {
+            System.runAs(DiscountApprovalTestDataFactory.persona('analyst')) { DiscountApprovalService.decide(prior.Id,'Approved','OK'); }
+        }
+        Test.startTest();deal.CloseDate=Date.newInstance(2026,7,1);update as system deal;Test.stopTest();
+        Discount_Approval__c current=DiscountApprovalTestDataFactory.pending(deal.Id);
+        Assert.areEqual('Executive',current.Route__c,'600000 corporate after boundary');
+        Assert.areEqual('Superseded',[SELECT Status__c FROM Discount_Approval__c WHERE Id=:prior.Id WITH SYSTEM_MODE].Status__c,'Prior cycle invalidated');
+        Assert.areEqual('Completed',[SELECT Status FROM Task WHERE Id=:prior.Manager_Task_Id__c WITH SYSTEM_MODE].Status,'Prior task closed');
+        Assert.areEqual(600000,[SELECT Routing_Amount_Corporate__c FROM Discount_Approval__c WHERE Id=:current.Id WITH SYSTEM_MODE].Routing_Amount_Corporate__c,'New rate snapshot');
+        Assert.areEqual(1,[SELECT COUNT() FROM Task WHERE WhatId=:deal.Id AND Status='Not Started' WITH SYSTEM_MODE],'One current task');
+    }
     @IsTest static void protectedOutcomeDenied() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);insert as system deal;
         Test.startTest();deal.Discount_Approval_Status__c='Approved';Database.SaveResult result=Database.update(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
