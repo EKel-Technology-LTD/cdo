@@ -1,8 +1,8 @@
 /** Routing and currency conversion. Percent values in Apex use percentage points. */
 public with sharing class DiscountApprovalPolicy {
-    private static Map<String, Decimal> rates;
-    private static String corporate;
-    private static Map<String,List<SObject>> datedRates;
+    @TestVisible private static Map<String, Decimal> rates;
+    @TestVisible private static String corporate;
+    @TestVisible private static Map<String,List<SObject>> datedRates;
     /** Determines the approved route from percentage points and corporate amount. */
     public static String route(Decimal discount, Decimal amount) {
         if (discount == null || discount < 10) return null;
