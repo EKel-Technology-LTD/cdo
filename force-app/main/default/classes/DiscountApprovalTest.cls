@@ -1,5 +1,5 @@
 /** Acceptance and adversarial tests for the complete approval lifecycle. */
-@IsTest
+@IsTest(testFor='ApexClass:DiscountApprovalHandler,ApexClass:DiscountApprovalPolicy,ApexClass:DiscountApprovalService,ApexClass:DiscountApprovalSharing,ApexTrigger:DiscountApprovalTrigger,ApexTrigger:OpportunityDiscountTrigger')
 private with sharing class DiscountApprovalTest {
     @TestSetup static void setup() { DiscountApprovalTestDataFactory.createPersonas(); }
     @IsTest static void boundaries() {
