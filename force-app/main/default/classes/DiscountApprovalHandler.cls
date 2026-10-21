@@ -47,8 +47,11 @@ public without sharing class DiscountApprovalHandler {
                     }
                 }
             }
-            if (old != null && wonStages.contains(old.StageName) && changed(record,old,true))
+            if (old != null && wonStages.contains(old.StageName) && changed(record,old,true)) {
                 record.addError('Reopen the Opportunity before changing discount terms on a Closed Won deal.');
+                // Do not replace the recovery instruction with the later pending-approval error.
+                continue;
+            }
             if (recalculate(record,old)) {
                 String route = DiscountApprovalPolicy.route(record.Discount_Percent__c,DiscountApprovalPolicy.corporateAmount(record));
                 Id manager = users.get(record.OwnerId)?.ManagerId;

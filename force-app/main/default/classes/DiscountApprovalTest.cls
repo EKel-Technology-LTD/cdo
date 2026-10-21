@@ -156,9 +156,14 @@ private with sharing class DiscountApprovalTest {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);insert as system deal;
         System.runAs(DiscountApprovalTestDataFactory.persona('manager')) { DiscountApprovalService.decide(DiscountApprovalTestDataFactory.pending(deal.Id).Id,'Approved','OK'); }
         deal.StageName='Closed Won';update as system deal;
-        Test.startTest();deal.Discount_Percent__c=16;Database.SaveResult result=Database.update(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
-        Assert.isFalse(result.isSuccess(),'Closed terms locked');
-        Assert.isTrue(result.getErrors()[0].getMessage().contains('Reopen'),'Reopen first');
+        Test.startTest();deal.Discount_Percent__c=16;
+        assertValidation(Database.update(deal,false,AccessLevel.SYSTEM_MODE),'Reopen the Opportunity before changing discount terms on a Closed Won deal.');
+        deal.StageName='Qualification';
+        assertValidation(Database.update(deal,false,AccessLevel.SYSTEM_MODE),'Reopen the Opportunity before changing discount terms on a Closed Won deal.');
+        update as system new Opportunity(Id=deal.Id,StageName='Qualification');
+        update as system deal;
+        Test.stopTest();
+        Assert.areEqual('Pending',[SELECT Discount_Approval_Status__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE].Discount_Approval_Status__c,'Separate reopen permits terms change and requires approval');
     }
     @IsTest static void protectedOutcomeDenied() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);insert as system deal;
@@ -237,6 +242,54 @@ private with sharing class DiscountApprovalTest {
             Assert.areEqual('Superseded',[SELECT Status__c FROM Discount_Approval__c WHERE Id=:prior WITH SYSTEM_MODE].Status__c,'Currency change invalidates');
         }
         Test.stopTest();
+    }
+    @IsTest static void currencyRatesUseCloseDate() {
+        seedCurrencyRates();
+        DiscountApprovalPolicy.datedRates.put('EUR',new List<SObject>{
+            datedRate('2026-07-01',null,4),datedRate('2026-01-01','2026-07-01',2)});
+        Opportunity deal=new Opportunity(Amount=100000,CurrencyIsoCode='EUR',CloseDate=Date.newInstance(2026,6,30));
+        Test.startTest();
+        Assert.areEqual(50000,DiscountApprovalPolicy.corporateAmount(deal),'Uses historical rate before next start');
+        deal.CloseDate=Date.newInstance(2026,7,1);
+        Assert.areEqual(25000,DiscountApprovalPolicy.corporateAmount(deal),'Next start is exclusive; new start inclusive');
+        deal.CloseDate=Date.newInstance(2027,1,1);
+        Assert.areEqual(25000,DiscountApprovalPolicy.corporateAmount(deal),'Open-ended current interval');
+        deal.CurrencyIsoCode=null;
+        Assert.areEqual(100000,DiscountApprovalPolicy.corporateAmount(deal),'Blank currency defaults to corporate');
+        deal.Amount=null;
+        Assert.areEqual(0,DiscountApprovalPolicy.corporateAmount(deal),'Blank amount');
+        Test.stopTest();
+    }
+    @IsTest static void currencyRateGapsFailClosed() {
+        seedCurrencyRates();
+        Opportunity deal=new Opportunity(Amount=100000,CurrencyIsoCode='EUR',CloseDate=Date.newInstance(2026,1,1));
+        Test.startTest();
+        Assert.areEqual(50000,DiscountApprovalPolicy.corporateAmount(deal),'Current rate when no dated configuration exists');
+        DiscountApprovalPolicy.datedRates.put('EUR',new List<SObject>{datedRate('2026-07-01',null,4)});
+        assertMissingRate(deal);
+        deal.CurrencyIsoCode='GBP';
+        assertMissingRate(deal);
+        DiscountApprovalPolicy.datedRates.clear();
+        DiscountApprovalPolicy.rates.put('GBP',0);
+        assertMissingRate(deal);
+        Test.stopTest();
+    }
+    private static void seedCurrencyRates() {
+        // Transaction-local inputs only; never enable currencies or ACM in the sandbox.
+        DiscountApprovalPolicy.rates=new Map<String,Decimal>{'USD'=>1,'EUR'=>2,'GBP'=>3};
+        DiscountApprovalPolicy.corporate='USD';
+        DiscountApprovalPolicy.datedRates=new Map<String,List<SObject>>();
+    }
+    private static SObject datedRate(String startDate,String nextStartDate,Decimal rate) {
+        return (SObject)JSON.deserialize(JSON.serialize(new Map<String,Object>{
+            'attributes'=>new Map<String,String>{'type'=>'DatedConversionRate'},'IsoCode'=>'EUR',
+            'StartDate'=>startDate,'NextStartDate'=>nextStartDate,'ConversionRate'=>rate}),SObject.class);
+    }
+    private static void assertMissingRate(Opportunity deal) {
+        try { DiscountApprovalPolicy.corporateAmount(deal);Assert.fail('Missing or invalid rate must fail closed'); }
+        catch (DiscountApprovalPolicy.PolicyException error) {
+            Assert.areEqual('A valid currency conversion rate is required.',error.getMessage(),'Rate validation');
+        }
     }
     @IsTest static void noRecordAccessCannotReadPanel() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);insert as system deal;
