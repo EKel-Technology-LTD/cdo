@@ -10,7 +10,7 @@ jest.mock('@salesforce/apex/DiscountApprovalService.getPanel', () => {
 jest.mock('@salesforce/apex/DiscountApprovalService.decide', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/DiscountApprovalService.resubmit', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex', () => ({ refreshApex: jest.fn().mockResolvedValue() }), { virtual: true });
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+const flush = () => Promise.resolve();
 function mount(data) {
     const element = createElement('c-discount-approval-panel', { is: DiscountApprovalPanel });
     element.recordId = '006000000000001AAA';
