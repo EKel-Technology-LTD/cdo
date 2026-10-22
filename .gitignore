@@ -37,3 +37,7 @@ $RECYCLE.BIN/
 
 # Local environment variables
 .env
+
+# Local Deal Desk structural checks and unavailable dependency installation cache
+.discount-check/
+.npm/
