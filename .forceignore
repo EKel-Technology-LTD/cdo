@@ -19,3 +19,14 @@ force-app/data/**
 # resolve its label. The name is longer than a Layout name may be (80), so Orchard never deploys
 # or deletes these (CDO-13 QA, 2026-10-22).
 force-app/main/default/layouts/*MISSING LABEL*
+
+# Imported from production on 2026-10-16, then removed from this repository on 2026-10-19 (80144c8)
+# because sandboxes refuse them. Production still has them, so they stay out of every deploy and
+# are never deleted there.
+force-app/main/default/layouts/DevopsPipeline-DevOps Pipeline Layout.layout-meta.xml
+force-app/main/default/layouts/DevopsProject-DevOps Project Layout.layout-meta.xml
+force-app/main/default/layouts/LiveChatTranscriptActive-Chat Transcript %28In Progress%29 Layout.layout-meta.xml
+force-app/main/default/layouts/LiveChatTranscriptWaiting-Chat Transcript %28Waiting%29 Layout.layout-meta.xml
+force-app/main/default/layouts/WorkItem-Work Item Layout.layout-meta.xml
+force-app/main/default/permissionsets/AccessDevOpsCenterNamedCredentials/AccessDevOpsCenterNamedCredentials.externalCredentialPrincipalAccess-meta.xml
+force-app/main/default/permissionsets/AccessDevOpsCenterNamedCredentials/AccessDevOpsCenterNamedCredentials.permissionset-meta.xml
