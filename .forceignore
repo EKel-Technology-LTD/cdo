@@ -14,3 +14,8 @@ package.xml
 # Orchard deployment actions: pre/post scripts and data run by Orchard, never by the Metadata API
 force-app/scripts/**
 force-app/data/**
+
+# Salesforce retrieve placeholders: listMetadata names a standard layout this way when it cannot
+# resolve its label. The name is longer than a Layout name may be (80), so Orchard never deploys
+# or deletes these (CDO-13 QA, 2026-10-22).
+force-app/main/default/layouts/*MISSING LABEL*
