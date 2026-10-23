@@ -3,8 +3,8 @@
  */
 @IsTest
 private with sharing class DemoLeadFollowupServiceTest {
-    private static Lead fixture(Integer number, String intent) {
-        return new Lead(LastName='合成餐會測試'+number, Company='Synthetic Banquet '+number,
+    private static Lead fixture(Integer seq, String intent) {
+        return new Lead(LastName='合成餐會測試'+seq, Company='Synthetic Banquet '+seq,
             OwnerId=UserInfo.getUserId(), Demo_Event_Code__c='CDO-BANQUET-DEMO', Demo_Followup_Intent__c=intent);
     }
     private static DemoLeadFollowupAction.Request request(Id leadId, String prior, Boolean isNew) {
