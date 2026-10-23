@@ -1,0 +1,13 @@
+PR: https://github.com/EKel-Technology-LTD/cdo/pull/19
+Starting workspace sourceSha: 610b5a5be3c1bb81d45e9171268f5a1789a1b36b (host verified; feedback headSha=null).
+Branch: feature-cdo-13-deal-desk-discount-approval-opportunitie
+Required correctness_dependencies: Closed Won guard now requires old or new discount >=10; regression fixtures cover null, 9.99, entering 10 and leaving 10.
+Required units_and_scale: shared changed predicate includes CloseDate; both phases re-evaluate and supersede Pending/Approved cycles; regression fixtures cover both statuses across dated-rate boundary.
+Optional missing-rate advisory: conversion is skipped when no approval is required. Manager task ownership unchanged.
+Verification: python3 tools/check_discount_delivery.py passed 48 source contract checks; all force-app XML parsed successfully. These checks are not Apex execution.
+Invariant review: percentage points and strict >500000 unchanged; null-safe >=10 guard; no permission/sharing changes; no added production queries/DML or loops; metadata/API versions unchanged at existing API 67.0.
+Missing capabilities: no prepare_build_environment, read_build_org, read_build_metadata or Apex/deployment execution tool supplied. Target reconciliation, compilation, regression execution and full runtime acceptance remain for Orchard CI; no deployment claimed.
+Guidance: salesforce-delivery revision 09220843409bdf1413b079933bc752b0baf099a58c771e198edb60f530079ea0; release reference assumes Winter '27, target release unverified, no API upgrade.
+Guidance: Salesforce Skills page p_829d5f3c809b65e403d8cb8b, upstream 4bbae5c421e51b40e4169afa72c4496372a602a7, wiki revision eafc75ff5a9fd98202fa63b133d6b22442b3bc41.
+Guidance: orchard-solution-audit blob 313eb02cfc646918870173cd4b97965f4b00166b; full server design/approval evidence not supplied, no full acceptance or promotion audit pass claimed.
+Publication: Orchard owns checkpoint/PR publication; no Git operations performed. Human preview, review and release gates remain.

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>Submitted_By__c</fullName>
+  <deleteConstraint>SetNull</deleteConstraint>
+  <label>Submitted By</label>
+  <referenceTo>User</referenceTo>
+  <relationshipLabel>Submitted By</relationshipLabel>
+  <relationshipName>Discount_Cycle_Submitted_By</relationshipName>
+  <type>Lookup</type>
+</CustomField>

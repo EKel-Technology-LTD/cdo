@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata"><applicationVisibilities><application>Deal_Desk</application><visible>true</visible></applicationVisibilities><classAccesses><apexClass>DiscountApprovalService</apexClass><enabled>true</enabled></classAccesses><hasActivationRequired>false</hasActivationRequired><label>Deal Desk Analyst</label><tabSettings><tab>standard-Opportunity</tab><visibility>Visible</visibility></tabSettings></PermissionSet>

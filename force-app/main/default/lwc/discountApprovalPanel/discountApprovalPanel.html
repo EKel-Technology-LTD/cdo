@@ -1,0 +1,34 @@
+<template>
+    <lightning-card title="Discount Approval" icon-name="standard:approval">
+        <div class="slds-p-around_medium">
+            <template lwc:if={busy}><lightning-spinner alternative-text="Saving discount approval" size="small"></lightning-spinner></template>
+            <template lwc:if={error}><p role="alert">{error}</p></template>
+            <template lwc:if={panel}>
+                <lightning-record-view-form record-id={recordId} object-api-name="Opportunity">
+                    <lightning-output-field field-name="Discount_Percent__c"></lightning-output-field>
+                    <lightning-output-field field-name="Amount"></lightning-output-field>
+                    <lightning-output-field field-name="Amount_After_Discount__c"></lightning-output-field>
+                    <lightning-output-field field-name="Discount_Reason__c"></lightning-output-field>
+                    <lightning-output-field field-name="Discount_Approval_Status__c"></lightning-output-field>
+                    <lightning-output-field field-name="Discount_Required_Approver__c"></lightning-output-field>
+                </lightning-record-view-form>
+                <template lwc:if={panel.canDecide}>
+                    <lightning-textarea label="Decision Comment" value={comment} onchange={handleComment} required maxlength="4000" disabled={busy}></lightning-textarea>
+                    <lightning-button label="Approve" variant="brand" onclick={approve} disabled={busy} class="slds-m-right_small"></lightning-button>
+                    <lightning-button label="Reject" variant="destructive" onclick={reject} disabled={busy}></lightning-button>
+                </template>
+                <template lwc:if={panel.canResubmit}><lightning-button label="Resubmit" onclick={handleResubmit} disabled={busy}></lightning-button></template>
+                <h3 class="slds-text-heading_small slds-m-top_medium">Decision History</h3>
+                <ul>
+                    <template for:each={history} for:item="cycle">
+                        <li key={cycle.Id} class="slds-box slds-m-top_small">
+                            <p>{cycle.Name}: {cycle.Status__c} — {cycle.Route__c}</p>
+                            <p>{cycle.decidedBy} <lightning-formatted-date-time value={cycle.Decided_At__c} year="numeric" month="short" day="2-digit" hour="2-digit" minute="2-digit"></lightning-formatted-date-time></p>
+                            <lightning-formatted-text value={cycle.Decision_Comment__c}></lightning-formatted-text>
+                        </li>
+                    </template>
+                </ul>
+            </template>
+        </div>
+    </lightning-card>
+</template>

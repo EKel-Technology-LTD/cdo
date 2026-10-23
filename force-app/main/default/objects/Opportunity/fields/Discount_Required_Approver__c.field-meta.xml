@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+  <fullName>Discount_Required_Approver__c</fullName>
+  <formula>CASE(TEXT(Discount_Approval_Route__c), "Manager", Discount_Approver__r.FirstName &amp; " " &amp; Discount_Approver__r.LastName, "Deal Desk", "Deal Desk team", "Executive", "Executive approvers", "")</formula>
+  <label>Required Approver</label>
+  <type>Text</type>
+</CustomField>

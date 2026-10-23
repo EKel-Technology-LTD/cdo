@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Demo_Followup_Date__c</fullName>
+    <inlineHelpText>記錄預計跟進日期；不會建立提醒或通知。</inlineHelpText>
+    <label>示範預計跟進日期</label>
+    <required>false</required>
+    <type>Date</type>
+</CustomField>
