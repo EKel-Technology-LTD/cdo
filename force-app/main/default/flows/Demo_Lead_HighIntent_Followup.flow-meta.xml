@@ -52,7 +52,7 @@
     <start>
         <locationX>50</locationX><locationY>0</locationY>
         <connector><targetReference>Create_Followup</targetReference></connector>
-        <filterFormula>AND(EXACT({!$Record.Demo_Event_Code__c}, "CDO-BANQUET-DEMO"), NOT({!$Record.IsConverted}), ISPICKVAL({!$Record.Demo_Followup_Intent__c}, "High"), OR(ISNEW(), NOT(ISPICKVAL({!$Record__Prior.Demo_Followup_Intent__c}, "High"))))</filterFormula>
+        <filterFormula>AND({!$Record.Demo_Event_Code__c} = "CDO-BANQUET-DEMO", NOT({!$Record.IsConverted}), ISPICKVAL({!$Record.Demo_Followup_Intent__c}, "High"), OR(ISNEW(), NOT(ISPICKVAL({!$Record__Prior.Demo_Followup_Intent__c}, "High"))))</filterFormula>
         <object>Lead</object>
         <recordTriggerType>CreateAndUpdate</recordTriggerType>
         <triggerType>RecordAfterSave</triggerType>
