@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>只提供午餐會示範 Lead 四欄讀寫權；不提供物件或記錄存取權。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>示範 Lead 業務</label>
+</PermissionSet>
