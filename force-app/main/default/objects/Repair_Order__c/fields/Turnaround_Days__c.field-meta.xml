@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Turnaround_Days__c</fullName>
+    <formula>IF(OR(ISBLANK(Repair_Completed_Date__c),ISBLANK(Received_Date__c)),NULL,Repair_Completed_Date__c-Received_Date__c)</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <label>Turnaround Days</label>
+    <precision>18</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

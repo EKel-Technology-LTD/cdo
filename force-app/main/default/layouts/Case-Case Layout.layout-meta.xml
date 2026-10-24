@@ -303,6 +303,13 @@
     <relatedLists>
         <relatedList>RelatedAttachmentList</relatedList>
     </relatedLists>
+    <relatedLists>
+        <fields>NAME</fields>
+        <fields>Repair_Status__c</fields>
+        <fields>Received_Date__c</fields>
+        <fields>Is_Overdue__c</fields>
+        <relatedList>Repair_Order__c.Case__c</relatedList>
+    </relatedLists>
     <relatedObjects>ContactId</relatedObjects>
     <relatedObjects>AccountId</relatedObjects>
     <runAssignmentRulesDefault>false</runAssignmentRulesDefault>
