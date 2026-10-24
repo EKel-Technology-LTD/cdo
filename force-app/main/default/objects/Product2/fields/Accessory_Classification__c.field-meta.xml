@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Accessory_Classification__c</fullName>
+    <inlineHelpText>Consumable means an Accessory routinely replaced or depleted during normal use, including filters and filter cartridges; Durable Accessory means an Accessory not intended for routine replacement.</inlineHelpText>
+    <label>配件分類</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Consumable</fullName>
+                <default>false</default>
+                <label>耗材</label>
+            </value>
+            <value>
+                <fullName>Durable_Accessory</fullName>
+                <default>false</default>
+                <label>耐用配件</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

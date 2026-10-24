@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Accessory_Requires_Classification</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(IsActive,ISPICKVAL(Product_Line__c,"Accessory"),ISBLANK(TEXT(Accessory_Classification__c)))</errorConditionFormula>
+    <errorDisplayField>Accessory_Classification__c</errorDisplayField>
+    <errorMessage>啟用中的耗材與配件必須填寫配件分類。</errorMessage>
+</ValidationRule>
