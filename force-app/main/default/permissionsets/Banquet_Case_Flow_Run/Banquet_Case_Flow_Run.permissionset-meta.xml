@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>僅提供餐會分類 Flow 存取；不授予 Case CRUD、FLS、記錄存取或一般 Flow 執行權。</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>餐會諮詢流程使用</label>
+</PermissionSet>
