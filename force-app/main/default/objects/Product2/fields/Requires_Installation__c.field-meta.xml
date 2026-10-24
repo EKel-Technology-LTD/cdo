@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Requires_Installation__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>Check for products that require a technician to install at the customer's home</inlineHelpText>
+    <label>需要安裝</label>
+    <populateExistingRows>false</populateExistingRows>
+    <type>Checkbox</type>
+</CustomField>
