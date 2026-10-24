@@ -62,6 +62,18 @@ class Contract(unittest.TestCase):
  def test_choice_sets(self):
   self.assertEqual({text(c,'m:picklistField') for c in all(self.f,'m:dynamicChoiceSets')},FIELDS)
   self.assertFalse(all(self.f,'m:choices'))
+ def test_picklist_choice_set_schema_regression(self):
+  # 0AfAu00000iLMDtKAO: even an empty object element conflicts with picklistObject.
+  choices=all(self.f,'m:dynamicChoiceSets')
+  self.assertEqual(len(choices),3)
+  for choice in choices:
+   with self.subTest(choice=text(choice,'m:name')):
+    self.assertEqual(text(choice,'m:dataType'),'Picklist')
+    self.assertEqual(text(choice,'m:picklistObject'),'Case')
+    self.assertIn(text(choice,'m:picklistField'),FIELDS)
+    self.assertEqual({child.tag.split('}')[-1] for child in choice},
+                     {'name','dataType','picklistField','picklistObject'},
+                     'Picklist choice sets must omit record-choice object/displayField, even when empty')
  def test_entry_and_minimal_permission(self):
   a=read('quickActions/Case.Organize_Banquet_Inquiry.quickAction-meta.xml')
   self.assertEqual(text(a,'m:type'),'Flow'); self.assertEqual(text(a,'m:flowDefinition'),'Banquet_Case_Classify')

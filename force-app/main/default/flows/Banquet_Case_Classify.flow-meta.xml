@@ -150,24 +150,18 @@
     <dynamicChoiceSets>
         <name>TopicChoices</name>
         <dataType>Picklist</dataType>
-        <displayField />
-        <object />
         <picklistField>Demo_Inquiry_Topic__c</picklistField>
         <picklistObject>Case</picklistObject>
     </dynamicChoiceSets>
     <dynamicChoiceSets>
         <name>ImpactChoices</name>
         <dataType>Picklist</dataType>
-        <displayField />
-        <object />
         <picklistField>Demo_Impact__c</picklistField>
         <picklistObject>Case</picklistObject>
     </dynamicChoiceSets>
     <dynamicChoiceSets>
         <name>ProgressChoices</name>
         <dataType>Picklist</dataType>
-        <displayField />
-        <object />
         <picklistField>Demo_Response_Stage__c</picklistField>
         <picklistObject>Case</picklistObject>
     </dynamicChoiceSets>
