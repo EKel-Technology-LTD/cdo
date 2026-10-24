@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Requires_Energy_Grade</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(IsActive, OR(ISPICKVAL(Product_Line__c,"Air_Purifier"),ISPICKVAL(Product_Line__c,"Dehumidifier")), NOT(OR(ISPICKVAL(Energy_Efficiency_Grade__c,"Grade_1"),ISPICKVAL(Energy_Efficiency_Grade__c,"Grade_2"),ISPICKVAL(Energy_Efficiency_Grade__c,"Grade_3"),ISPICKVAL(Energy_Efficiency_Grade__c,"Grade_4"),ISPICKVAL(Energy_Efficiency_Grade__c,"Grade_5"))))</errorConditionFormula>
+    <errorDisplayField>Energy_Efficiency_Grade__c</errorDisplayField>
+    <errorMessage>啟用中的空氣清淨機與除濕機必須填寫第 1 級至第 5 級能源效率等級。</errorMessage>
+</ValidationRule>

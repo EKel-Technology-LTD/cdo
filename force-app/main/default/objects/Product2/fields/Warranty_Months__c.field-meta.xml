@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Warranty_Months__c</fullName>
+    <defaultValue>12</defaultValue>
+    <inlineHelpText>Original manufacturer warranty months; enter 0 for consumables and service plans</inlineHelpText>
+    <label>保固月數</label>
+    <populateExistingRows>false</populateExistingRows>
+    <precision>3</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>

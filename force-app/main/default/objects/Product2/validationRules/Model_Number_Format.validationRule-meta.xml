@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Model_Number_Format</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(Model_Number__c)), NOT(REGEX(Model_Number__c, "^[A-Z0-9-]{3,40}$")))</errorConditionFormula>
+    <errorDisplayField>Model_Number__c</errorDisplayField>
+    <errorMessage>產品型號只能使用大寫英文、數字與連字號（3–40 碼）。</errorMessage>
+</ValidationRule>
