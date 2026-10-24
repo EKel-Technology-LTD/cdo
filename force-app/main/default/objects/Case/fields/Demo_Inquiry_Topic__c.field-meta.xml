@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Demo_Inquiry_Topic__c</fullName>
+    <inlineHelpText>此活動詢問的主題；可留白。</inlineHelpText>
+    <label>詢問主題</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Product Introduction</fullName>
+                <default>false</default>
+                <isActive>true</isActive>
+                <label>產品介紹</label>
+            </value>
+            <value>
+                <fullName>Operation Assistance</fullName>
+                <default>false</default>
+                <isActive>true</isActive>
+                <label>操作協助</label>
+            </value>
+            <value>
+                <fullName>Service Anomaly</fullName>
+                <default>false</default>
+                <isActive>true</isActive>
+                <label>服務異常</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
