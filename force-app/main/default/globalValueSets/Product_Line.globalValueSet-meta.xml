@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customValue>
+        <fullName>Air_Purifier</fullName>
+        <default>false</default>
+        <label>空氣清淨機</label>
+    </customValue>
+    <customValue>
+        <fullName>Dehumidifier</fullName>
+        <default>false</default>
+        <label>除濕機</label>
+    </customValue>
+    <customValue>
+        <fullName>Vacuum_Cleaner</fullName>
+        <default>false</default>
+        <label>吸塵器</label>
+    </customValue>
+    <customValue>
+        <fullName>Water_Purifier</fullName>
+        <default>false</default>
+        <label>淨水器</label>
+    </customValue>
+    <customValue>
+        <fullName>Accessory</fullName>
+        <default>false</default>
+        <label>耗材與配件</label>
+    </customValue>
+    <customValue>
+        <fullName>Service_Plan</fullName>
+        <default>false</default>
+        <label>服務方案</label>
+    </customValue>
+    <masterLabel>產品線</masterLabel>
+    <sorted>false</sorted>
+</GlobalValueSet>

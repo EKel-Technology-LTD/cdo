@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Consumable_Requires_Cycle</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(IsActive,ISPICKVAL(Product_Line__c,"Accessory"),ISPICKVAL(Accessory_Classification__c,"Consumable"),ISBLANK(Replacement_Cycle_Months__c))</errorConditionFormula>
+    <errorDisplayField>Replacement_Cycle_Months__c</errorDisplayField>
+    <errorMessage>啟用中的耗材必須填寫建議更換週期（月）。</errorMessage>
+</ValidationRule>

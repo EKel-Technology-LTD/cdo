@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Products</fullName>
+    <columns>PRODUCT2.NAME</columns>
+    <columns>Model_Number__c</columns>
+    <columns>Product_Line__c</columns>
+    <columns>Warranty_Months__c</columns>
+    <columns>Energy_Efficiency_Grade__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>PRODUCT2.IS_ACTIVE</field>
+        <operation>equals</operation>
+        <value>1</value>
+    </filters>
+    <label>上市中產品</label>
+</ListView>

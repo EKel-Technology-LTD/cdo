@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>End_Of_Sale_After_Launch</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(AvailabilityDate)), NOT(ISBLANK(DiscontinuedDate)), DiscontinuedDate &lt; AvailabilityDate)</errorConditionFormula>
+    <errorDisplayField>DiscontinuedDate</errorDisplayField>
+    <errorMessage>停售日期不可早於上市日期。</errorMessage>
+</ValidationRule>
