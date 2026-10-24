@@ -82,11 +82,12 @@ class RepairContract(unittest.TestCase):
             name='Repair_Order_'+persona
             root=read(BASE/'permissionsets'/name/'objectSettings/Repair_Order__c.objectSettings-meta.xml')
             permissions={text(row,'field').split('.')[1]:row for row in root.findall('m:fieldPermissions',NS)}
-            expected=(custom|{'CurrencyIsoCode'})-REQUIRED
+            # CurrencyIsoCode is platform-required and rejects fieldPermissions.
+            expected=custom-REQUIRED
             if persona!='Technician': expected.remove('Technician_Notes__c')
             self.assertEqual(expected,set(permissions))
             edits={field for field,row in permissions.items() if text(row,'editable')=='true'}
-            self.assertEqual(expected-READONLY if persona=='Technician' else AGENT-REQUIRED if persona=='Agent' else set(),edits)
+            self.assertEqual(expected-READONLY if persona=='Technician' else AGENT-REQUIRED-{'CurrencyIsoCode'} if persona=='Agent' else set(),edits)
             for row in permissions.values():self.assertEqual('true',text(row,'readable'))
             for right in ['allowDelete','modifyAllRecords','viewAllRecords']:
                 self.assertEqual('false',text(root,'objectPermissions/'+right))
@@ -113,9 +114,10 @@ class RepairContract(unittest.TestCase):
         fields={text(i,'field'):text(i,'behavior') for i in items}
         custom={p.name.split('.')[0] for p in (OBJECT/'fields').glob('*.xml')}
         self.assertEqual(custom|{'Name','CurrencyIsoCode','CreatedById','LastModifiedById'},set(fields))
-        for field in REQUIRED|{'Fault_Description__c','CurrencyIsoCode'}:self.assertEqual('Required',fields[field])
+        for field in REQUIRED|{'Fault_Description__c'}:self.assertEqual('Required',fields[field])
         for field in READONLY|{'Name','CreatedById','LastModifiedById'}:self.assertEqual('Readonly',fields[field])
         self.assertEqual('Edit',fields['Repair_Status__c'])
+        self.assertEqual('Edit',fields['CurrencyIsoCode'])
 
     def test_apex_contract_and_test_inventory(self):
         validator=(BASE/'classes/RepairOrderValidator.cls').read_text()
@@ -127,6 +129,8 @@ class RepairContract(unittest.TestCase):
         self.assertIn('WITH SYSTEM_MODE LIMIT 2',validator)
         self.assertNotRegex(validator,r'(?i)\b(insert|update|delete)\s+(as\s+system|orders)')
         self.assertNotIn('SeeAllData=true',tests)
+        self.assertNotRegex(tests, r'(?i)\bString\s+currency\b')
+        self.assertIn('CurrencyIsoCode=corporateIsoCode', tests)
         self.assertIn('bulkImport200Has195SuccessesAnd5DescriptionFailures',tests)
         self.assertIn('bulk251InsertAndUpdateValidateAcrossChunks',tests)
         self.assertEqual(28,len(re.findall(r'@IsTest static void ',tests)))

@@ -12,9 +12,9 @@ private with sharing class RepairOrderValidatorTest {
     private class Fixtures {
         Case serviceCase;
         Asset asset;
-        String currency;
+        String corporateIsoCode;
         Fixtures() {
-            currency = [SELECT IsoCode FROM CurrencyType WHERE IsCorporate = true WITH SYSTEM_MODE LIMIT 1].IsoCode;
+            corporateIsoCode = [SELECT IsoCode FROM CurrencyType WHERE IsCorporate = true WITH SYSTEM_MODE LIMIT 1].IsoCode;
             Account account = new Account(Name='Synthetic Repair Customer');
             insert as system account;
             serviceCase = new Case(Subject='Synthetic appliance leakage', Status='New', Origin='Phone', AccountId=account.Id);
@@ -25,7 +25,7 @@ private with sharing class RepairOrderValidatorTest {
         Repair_Order__c order() {
             return new Repair_Order__c(Case__c=serviceCase.Id, Asset__c=asset.Id,
                 Intake_Method__c='Courier_Pickup', Fault_Category__c='Leakage',
-                Fault_Description__c='Synthetic leak at the outlet', CurrencyIsoCode=currency);
+                Fault_Description__c='Synthetic leak at the outlet', CurrencyIsoCode=corporateIsoCode);
         }
     }
 
