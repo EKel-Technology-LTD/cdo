@@ -7,6 +7,9 @@ public with sharing class RepairOrderValidator {
     // A null cache means not yet loaded. An empty cache fails closed. Tests can supply
     // configuration rows without changing org currency settings or bypassing validation.
     @TestVisible private static List<CurrencyType> corporateConfiguration;
+    // Counts actual query attempts, independently of governor counters reset by partial saves.
+    // Observation only: never used to bypass validation or decide whether to load the cache.
+    @TestVisible private static Integer corporateConfigQueryCount = 0;
     private static final String CONFIGURATION_ERROR =
         'Repair Order corporate currency configuration is unavailable. Contact your administrator.';
 
@@ -42,6 +45,7 @@ public with sharing class RepairOrderValidator {
     private static String getCorporateCode() {
         if (corporateConfiguration == null) {
             try {
+                corporateConfigQueryCount++;
                 corporateConfiguration = [
                     SELECT IsoCode FROM CurrencyType WHERE IsCorporate = true
                     WITH SYSTEM_MODE LIMIT 2

@@ -119,6 +119,23 @@ class RepairContract(unittest.TestCase):
         self.assertEqual('Edit',fields['Repair_Status__c'])
         self.assertEqual('Edit',fields['CurrencyIsoCode'])
 
+    def test_preview_regressions(self):
+        validator=(BASE/'classes/RepairOrderValidator.cls').read_text()
+        tests=(BASE/'classes/RepairOrderValidatorTest.cls').read_text()
+        rule=read(OBJECT/'validationRules/Out_Of_Warranty_Needs_Approval.validationRule-meta.xml')
+        self.assertEqual('Out-of-warranty or customer-damage repairs require the customer\'s recorded quote approval before changing to "In Repair".',text(rule,'errorMessage'))
+        self.assertEqual('Repair_Status__c',text(rule,'errorDisplayField'))
+        self.assertIn('StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION',tests)
+        self.assertIn('error.getMessage().unescapeHtml4()',tests)
+        self.assertIn('actualMessage == message && error.getFields().contains(field)',tests)
+        self.assertEqual(1,validator.count('corporateConfigQueryCount++;'))
+        self.assertIn('if (corporateConfiguration == null)',validator)
+        self.assertNotIn('if (corporateConfigQueryCount',validator)
+        self.assertIn('Assert.areEqual(1,RepairOrderValidator.corporateConfigQueryCount',tests)
+        self.assertIn('Assert.isTrue(governorQueries <= 1',tests)
+        self.assertIn('Assert.areEqual(195,successes',tests)
+        self.assertIn('Assert.areEqual(5,failures',tests)
+
     def test_apex_contract_and_test_inventory(self):
         validator=(BASE/'classes/RepairOrderValidator.cls').read_text()
         trigger=(BASE/'triggers/RepairOrderValidation.trigger').read_text()

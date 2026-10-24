@@ -33,7 +33,12 @@ private with sharing class RepairOrderValidatorTest {
         Assert.isFalse(result.isSuccess(), 'Invalid save must fail');
         Boolean found = false;
         for (Database.Error error : result.getErrors()) {
-            if (error.getMessage() == message && error.getFields().contains(field)) {
+            // Declarative validation errors can HTML-escape quotes in Database.Error.
+            // Decode once only for this known rule; Apex addError messages remain exact.
+            String actualMessage = message == APPROVAL_ERROR
+                ? error.getMessage().unescapeHtml4() : error.getMessage();
+            if (error.getStatusCode() == StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION
+                && actualMessage == message && error.getFields().contains(field)) {
                 found = true;
             }
         }
@@ -124,6 +129,7 @@ private with sharing class RepairOrderValidatorTest {
         order.Warranty_Coverage__c='Out_Of_Warranty'; order.Repair_Status__c='In_Repair';
         Test.startTest();
         Database.SaveResult denied=Database.update(order,false,AccessLevel.SYSTEM_MODE);
+        Assert.areEqual('Awaiting_Receipt',saved(order.Id).Repair_Status__c,'Rejected transition preserves status');
         order.Customer_Approved_Quote__c=true; order.Quote_Approved_Date__c=Date.today();
         Database.SaveResult allowed=Database.update(order,false,AccessLevel.SYSTEM_MODE);
         Test.stopTest();
@@ -139,12 +145,14 @@ private with sharing class RepairOrderValidatorTest {
         Test.startTest(); Database.SaveResult result=Database.update(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
         assertError(result,'Repair_Status__c',APPROVAL_ERROR);
         Assert.isTrue(saved(order.Id).Customer_Approved_Quote__c,'Every-save approval guard preserves approval');
+        Assert.areEqual('In_Repair',saved(order.Id).Repair_Status__c,'Rejected revocation preserves repair status');
     }
     @IsTest static void customerDamageNeedsApprovalOnInsert() {
         Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order();
         order.Warranty_Coverage__c='Customer_Damage'; order.Repair_Status__c='In_Repair';
         Test.startTest(); Database.SaveResult result=Database.insert(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
         assertError(result,'Repair_Status__c',APPROVAL_ERROR);
+        Assert.areEqual(0,[SELECT COUNT() FROM Repair_Order__c WITH SYSTEM_MODE],'Unapproved customer-damage repair is not inserted');
     }
     @IsTest static void inWarrantyAndUndeterminedAllowRepair() {
         Fixtures fixtures=new Fixtures(); Repair_Order__c warranty=fixtures.order(); Repair_Order__c undetermined=fixtures.order();
@@ -241,7 +249,11 @@ private with sharing class RepairOrderValidatorTest {
     @IsTest static void bulkImport200Has195SuccessesAnd5DescriptionFailures() {
         Fixtures fixtures=new Fixtures(); List<Repair_Order__c> orders=new List<Repair_Order__c>();
         for(Integer i=0;i<200;i++) {Repair_Order__c order=fixtures.order(); if(i<5) {order.Fault_Description__c=null;} orders.add(order);}
-        Test.startTest(); List<Database.SaveResult> results=Database.insert(orders,false,AccessLevel.SYSTEM_MODE); Integer queries=Limits.getQueries(); Test.stopTest();
+        Assert.areEqual(null,RepairOrderValidator.corporateConfiguration,'Import starts with cold configuration cache');
+        Test.startTest();
+        List<Database.SaveResult> results=Database.insert(orders,false,AccessLevel.SYSTEM_MODE);
+        Integer governorQueries=Limits.getQueries();
+        Test.stopTest();
         Integer successes=0; Integer failures=0;
         for(Integer i=0;i<results.size();i++) {
             if(i<5) {assertError(results[i],'Fault_Description__c',FAULT_ERROR); failures++;}
@@ -249,17 +261,24 @@ private with sharing class RepairOrderValidatorTest {
         }
         Assert.areEqual(195,successes,'Exact successful rows'); Assert.areEqual(5,failures,'Exact rejected rows');
         Assert.areEqual(195,[SELECT COUNT() FROM Repair_Order__c WITH SYSTEM_MODE],'Persisted count');
-        Assert.areEqual(1,queries,'Corporate config queried once, even for partial-save retry');
+        // A partial-save retry can reset governor counts without resetting static state.
+        // Zero governor queries does not mean the initial attempt skipped configuration.
+        Assert.isTrue(governorQueries <= 1,'At most one necessary governor-counted config query');
+        Assert.areEqual(1,RepairOrderValidator.corporateConfigQueryCount,'Exactly one actual config query across partial-save retry');
+        Assert.areEqual(fixtures.corporateIsoCode,RepairOrderValidator.corporateConfiguration[0].IsoCode,'Real corporate configuration remains cached');
     }
     @IsTest static void bulk251InsertAndUpdateValidateAcrossChunks() {
         Fixtures fixtures=new Fixtures(); List<Repair_Order__c> orders=new List<Repair_Order__c>();
         for(Integer i=0;i<251;i++) {orders.add(fixtures.order());}
+        Assert.areEqual(null,RepairOrderValidator.corporateConfiguration,'Chunked insert starts with cold cache');
         Test.startTest(); insert as system orders;
+        Assert.areEqual(1,RepairOrderValidator.corporateConfigQueryCount,'Insert loads configuration exactly once');
         for(Repair_Order__c order:orders) {order.Fault_Description__c=' ';}
         List<Database.SaveResult> results=Database.update(orders,false,AccessLevel.SYSTEM_MODE); Integer queries=Limits.getQueries(); Test.stopTest();
         Assert.areEqual(251,results.size(),'Every row across chunks validated');
         for(Database.SaveResult result:results) {assertError(result,'Fault_Description__c',FAULT_ERROR);}
-        Assert.areEqual(1,queries,'One configuration query across chunks and operations');
+        Assert.isTrue(queries <= 1,'At most one governor-counted config query across chunks');
+        Assert.areEqual(1,RepairOrderValidator.corporateConfigQueryCount,'Warm-cache update does not query again and still rejects every invalid row');
     }
     @IsTest static void caseDeletionRestricted() {
         Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order(); insert as system order;
