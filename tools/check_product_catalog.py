@@ -153,8 +153,8 @@ class CatalogContract(unittest.TestCase):
 
     def test_list_view_contract(self):
         for name, label, columns, filter_field, value in [
-            ('Active_Products', '上市中產品', ['PRODUCT2.NAME', 'Model_Number__c', 'Product_Line__c', 'Warranty_Months__c', 'Energy_Efficiency_Grade__c'], 'PRODUCT2.IS_ACTIVE', '1'),
-            ('Ending_Sale_90_Days', '90 天內停售', ['PRODUCT2.NAME', 'Model_Number__c', 'Product_Line__c', 'DiscontinuedDate'], 'DiscontinuedDate', 'NEXT_N_DAYS:90'),
+            ('Active_Products', '上市中產品', ['PRODUCT2.NAME', 'Model_Number__c', 'Product_Line__c', 'Warranty_Months__c', 'Energy_Efficiency_Grade__c'], 'PRODUCT2.ACTIVE', '1'),
+            ('Ending_Sale_90_Days', '90 天內停售', ['PRODUCT2.NAME', 'Model_Number__c', 'Product_Line__c', 'PRODUCT2.DISCONTINUED_DATE'], 'PRODUCT2.DISCONTINUED_DATE', 'NEXT_N_DAYS:90'),
         ]:
             root = xml(f'objects/Product2/listViews/{name}.listView-meta.xml')
             self.assertEqual(text(root, 'label'), label)

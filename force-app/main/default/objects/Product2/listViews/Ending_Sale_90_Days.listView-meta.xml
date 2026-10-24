@@ -4,10 +4,10 @@
     <columns>PRODUCT2.NAME</columns>
     <columns>Model_Number__c</columns>
     <columns>Product_Line__c</columns>
-    <columns>DiscontinuedDate</columns>
+    <columns>PRODUCT2.DISCONTINUED_DATE</columns>
     <filterScope>Everything</filterScope>
     <filters>
-        <field>DiscontinuedDate</field>
+        <field>PRODUCT2.DISCONTINUED_DATE</field>
         <operation>equals</operation>
         <value>NEXT_N_DAYS:90</value>
     </filters>
