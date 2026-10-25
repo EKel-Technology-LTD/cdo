@@ -45,7 +45,7 @@ class SalesTargetContract(unittest.TestCase):
         r = xml('objects/Sales_Target__c/Sales_Target__c.object-meta.xml')
         expected = {'label':'Sales Quarterly Target','pluralLabel':'Sales Quarterly Targets',
                     'deploymentStatus':'Deployed','enableHistory':'true','enableReports':'true',
-                    'enableSearch':'true','enableSharing':'false','sharingModel':'Read',
+                    'enableSearch':'true','enableSharing':'true','enableBulkApi':'true','enableStreamingApi':'true','sharingModel':'Read',
                     'externalSharingModel':'Private','enableActivities':'false','enableFeeds':'false',
                     'nameField/type':'AutoNumber','nameField/label':'Target Number',
                     'nameField/displayFormat':'ST-{00000}','nameField/startingNumber':'1'}
