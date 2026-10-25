@@ -84,8 +84,8 @@ private class AssetWarrantyRegistrationTest {
             for (Integer delta = -3; delta <= 3; delta++) {
                 Date candidate = desired.addDays(1).addMonths(-24).addDays(delta);
                 // Salesforce ADDMONTHS preserves last-day-of-month semantics.
-                Date end = calendarAdd(candidate, 24).addDays(-1);
-                if (end == desired) purchase = candidate;
+                Date warrantyEnd = calendarAdd(candidate, 24).addDays(-1);
+                if (warrantyEnd == desired) purchase = candidate;
             }
             if (purchase != null) {
                 Asset a = registration('BOUNDARY-' + String.valueOf(offset).replace('-', 'N'));
@@ -96,8 +96,8 @@ private class AssetWarrantyRegistrationTest {
         insert boundaries;
         for (Asset a : boundaries) {
             Asset saved = reload(a.Id);
-            Date end = saved.Warranty_End_Date__c;
-            Assert.areEqual(end < today ? '已過保' : (end <= today.addDays(30) ? '30 天內到期' : '保固中'), saved.Warranty_Status__c);
+            Date warrantyEnd = saved.Warranty_End_Date__c;
+            Assert.areEqual(warrantyEnd < today ? '已過保' : (warrantyEnd <= today.addDays(30) ? '30 天內到期' : '保固中'), saved.Warranty_Status__c);
         }
     }
     private static Date calendarAdd(Date value, Integer months) {

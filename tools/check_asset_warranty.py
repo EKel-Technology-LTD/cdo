@@ -159,7 +159,9 @@ class WarrantyContract(unittest.TestCase):
     def test_permission_boundary(self):
         for mode in ['Read', 'Edit']:
             directory = BASE / f'permissionsets/Asset_Warranty_{mode}'
-            for obj in ['Asset', 'Account', 'Product2']:
+            self.assertEqual({p.name for p in (directory / 'objectSettings').glob('*.xml')},
+                {f'{obj}.objectSettings-meta.xml' for obj in ['Asset', 'Account', 'Contact', 'Product2']})
+            for obj in ['Asset', 'Account', 'Contact', 'Product2']:
                 root = ET.parse(directory / f'objectSettings/{obj}.objectSettings-meta.xml').getroot()
                 grants = root.find('objectPermissions')
                 self.assertEqual(grants.findtext('allowRead'), 'true')
