@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Registered_Requires_Person_Account</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Status,"Registered"),OR(ISBLANK(AccountId),NOT(Account.IsPersonAccount)))</errorConditionFormula>
+    <errorMessage>登錄保固時請選擇個人帳戶。</errorMessage>
+</ValidationRule>
