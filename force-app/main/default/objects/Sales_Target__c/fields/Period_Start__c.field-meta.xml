@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <formula>DATE(Fiscal_Year__c,CASE(TEXT(Fiscal_Quarter__c),"Q1",1,"Q2",4,"Q3",7,"Q4",10,1),1)</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <fullName>Period_Start__c</fullName>
+    <label>Period Start</label>
+    <type>Date</type>
+</CustomField>

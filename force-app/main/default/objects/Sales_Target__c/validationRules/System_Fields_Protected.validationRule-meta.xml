@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <errorConditionFormula>AND(NOT($Permission.Sales_Target_System_Write),OR(AND(ISNEW(),OR(NOT(ISBLANK(Actual_Amount__c)),NOT(ISBLANK(Won_Opportunity_Count__c)),NOT(ISBLANK(Last_Calculated_At__c)),NOT(ISBLANK(Target_Key__c)))),AND(NOT(ISNEW()),OR(ISCHANGED(Actual_Amount__c),ISCHANGED(Won_Opportunity_Count__c),ISCHANGED(Last_Calculated_At__c),ISCHANGED(Target_Key__c)))))</errorConditionFormula>
+    <errorMessage>Actuals and target keys can only be changed by the system.</errorMessage>
+    <fullName>System_Fields_Protected</fullName>
+</ValidationRule>

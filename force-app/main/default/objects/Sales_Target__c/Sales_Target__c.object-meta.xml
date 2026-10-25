@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <enableActivities>false</enableActivities>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <enableSharing>false</enableSharing>
+    <externalSharingModel>Private</externalSharingModel>
+    <label>Sales Quarterly Target</label>
+    <nameField>
+        <displayFormat>ST-{00000}</displayFormat>
+        <label>Target Number</label>
+        <startingNumber>1</startingNumber>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Sales Quarterly Targets</pluralLabel>
+    <sharingModel>Read</sharingModel>
+</CustomObject>
