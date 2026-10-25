@@ -6,7 +6,7 @@
     <relationshipName>Dealer_Agreements</relationshipName>
     <relationshipOrder>0</relationshipOrder>
     <reparentableMasterDetail>true</reparentableMasterDetail>
-    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+    <writeRequiresMasterRead>true</writeRequiresMasterRead>
     <label>Dealer</label>
     <trackHistory>false</trackHistory>
     <type>MasterDetail</type>

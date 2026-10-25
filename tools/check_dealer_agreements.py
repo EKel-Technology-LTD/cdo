@@ -50,7 +50,7 @@ for api,values in {'Agreement_Status__c':['Draft','In_Review','Active','Expired'
 for api,target,filterfield,valuekey,value in [('Dealer__c','Account','Account.IsPersonAccount','value','false'),('Dealer_Contact__c','Contact','Contact.AccountId','valueField','$Source.Dealer__c')]:
     r=fields[api]
     for k,v in {'referenceTo':target,'relationshipName':'Dealer_Agreements','lookupFilter/active':'true','lookupFilter/isOptional':'false','lookupFilter/filterItems/field':filterfield,'lookupFilter/filterItems/operation':'equals','lookupFilter/filterItems/'+valuekey:value}.items():check(text(r,k)==v,api+' '+k)
-check(text(fields['Dealer__c'],'reparentableMasterDetail')=='true' and text(fields['Dealer__c'],'writeRequiresMasterRead')=='false','parent edit requirements')
+check(text(fields['Dealer__c'],'reparentableMasterDetail')=='true' and text(fields['Dealer__c'],'writeRequiresMasterRead')=='true','agreement writes require only parent Read access')
 for api in ['Dealer_Contact__c','Renewal_Opportunity__c']:check(text(fields[api],'deleteConstraint')=='SetNull',api+' delete')
 rules={p.name.split('.')[0]:ET.parse(p).getroot() for p in (BASE/'objects'/OBJ/'validationRules').glob('*.xml')}
 expected={
