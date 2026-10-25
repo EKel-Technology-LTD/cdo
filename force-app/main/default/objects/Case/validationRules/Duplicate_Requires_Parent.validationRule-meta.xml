@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Duplicate_Requires_Parent</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Resolution_Code__c,"Duplicate"), ISBLANK(ParentId))</errorConditionFormula>
+    <errorMessage>結案代碼為「重複案件」時，請在上層案件填入原案件。</errorMessage>
+</ValidationRule>
