@@ -79,12 +79,13 @@ for persona in ['Manage','Edit','Read']:
     check(all(text(v,'readable')=='true' for v in items(ps,'fieldPermissions')),persona+' read fields')
     for k,v in {'allowRead':True,'allowCreate':persona!='Read','allowEdit':persona!='Read','allowDelete':False,'modifyAllRecords':False,'viewAllRecords':False}.items():check(text(ps,'objectPermissions/'+k)==str(v).lower(),persona+' '+k)
     check(len(items(ps,'objectPermissions'))==1 and text(ps,'objectPermissions/object')==OBJ,persona+' agreement object grant')
-    # Owner-approved 2026-10-25 exception: Account Read only, no other parent grants.
-    account_ps=read(f'permissionsets/{name}/objectSettings/Account.objectSettings-meta.xml')
-    check({p.name for p in (BASE/f'permissionsets/{name}/objectSettings').glob('*.xml')} == {f'{OBJ}.objectSettings-meta.xml','Account.objectSettings-meta.xml'},persona+' exact object scope')
-    check([v.tag.split('}')[-1] for v in account_ps] == ['objectPermissions'],persona+' no Account field or other grants')
-    expected_account={'allowCreate':'false','allowDelete':'false','allowEdit':'false','allowRead':'true','modifyAllRecords':'false','object':'Account','viewAllFields':'false','viewAllRecords':'false'}
-    check({v.tag.split('}')[-1]:v.text for v in items(account_ps,'objectPermissions')[0]} == expected_account,persona+' Account Read only')
+    # Owner-approved 2026-10-25 exceptions: Account and Contact Read only.
+    check({p.name for p in (BASE/f'permissionsets/{name}/objectSettings').glob('*.xml')} == {f'{OBJ}.objectSettings-meta.xml','Account.objectSettings-meta.xml','Contact.objectSettings-meta.xml'},persona+' exact object scope')
+    for parent in ['Account','Contact']:
+        parent_ps=read(f'permissionsets/{name}/objectSettings/{parent}.objectSettings-meta.xml')
+        check([v.tag.split('}')[-1] for v in parent_ps] == ['objectPermissions'],persona+' no '+parent+' field or other grants')
+        expected_parent={'allowCreate':'false','allowDelete':'false','allowEdit':'false','allowRead':'true','modifyAllRecords':'false','object':parent,'viewAllFields':'false','viewAllRecords':'false'}
+        check({v.tag.split('}')[-1]:v.text for v in items(parent_ps,'objectPermissions')[0]} == expected_parent,persona+' '+parent+' Read only')
     check([text(v,'name') for v in items(root,'customPermissions')]==(['Manage_Dealer_Agreements'] if persona=='Manage' else []),persona+' custom permission')
     check(text(root,'tabSettings/tab')==OBJ and text(root,'tabSettings/visibility')=='Visible',persona+' tab')
 layout=read(f'layouts/{OBJ}-Dealer Agreement Layout.layout-meta.xml')
