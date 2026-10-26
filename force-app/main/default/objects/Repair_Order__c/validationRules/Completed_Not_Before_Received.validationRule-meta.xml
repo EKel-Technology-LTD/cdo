@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Completed_Not_Before_Received</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(Repair_Completed_Date__c)),NOT(ISBLANK(Received_Date__c)),Repair_Completed_Date__c&lt;Received_Date__c)</errorConditionFormula>
+    <errorDisplayField>Repair_Completed_Date__c</errorDisplayField>
+    <errorMessage>Completed Date cannot be earlier than Received Date.</errorMessage>
+</ValidationRule>
