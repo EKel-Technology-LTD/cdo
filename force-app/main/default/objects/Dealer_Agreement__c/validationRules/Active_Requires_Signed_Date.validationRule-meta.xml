@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Active_Requires_Signed_Date</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Agreement_Status__c,"Active"),ISBLANK(Signed_Date__c))</errorConditionFormula>
+    <errorDisplayField>Signed_Date__c</errorDisplayField>
+    <errorMessage>A signing date must be entered before the agreement becomes active.</errorMessage>
+</ValidationRule>

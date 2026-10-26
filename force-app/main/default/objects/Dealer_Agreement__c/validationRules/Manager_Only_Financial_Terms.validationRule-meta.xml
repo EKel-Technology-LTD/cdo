@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Manager_Only_Financial_Terms</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT($Permission.Manage_Dealer_Agreements),IF(ISNEW(),OR(NOT(ISBLANK(Rebate_Rate__c)),NOT(ISBLANK(Credit_Limit__c))),OR(ISCHANGED(Rebate_Rate__c),ISCHANGED(Credit_Limit__c))))</errorConditionFormula>
+    <errorMessage>Only channel managers and sales directors can change Rebate Rate or Credit Limit.</errorMessage>
+</ValidationRule>

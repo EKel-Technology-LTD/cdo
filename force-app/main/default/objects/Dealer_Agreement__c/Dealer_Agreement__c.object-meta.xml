@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Dealer agreements capture contractual periods and commercial terms under business accounts. Dealer Tier limits Rebate Rate; Signed Date supports activation and Termination Reason records closure. Days to Expiry highlights remaining time. Sales maintain drafts while channel leadership controls status and financial terms.</description>
+    <enableActivities>true</enableActivities>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <externalSharingModel>ControlledByParent</externalSharingModel>
+    <label>Dealer Agreement</label>
+    <nameField>
+        <displayFormat>DA-{00000}</displayFormat>
+        <label>Agreement Number</label>
+        <startingNumber>1</startingNumber>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Dealer Agreements</pluralLabel>
+    <sharingModel>ControlledByParent</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>
