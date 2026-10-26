@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>Sales_Target_System_Write</name>
+    </customPermissions>
+    <description>Machine-only system-context fixture authorization. No CRUD/FLS and no human assignments.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Sales Target System Write Access</label>
+</PermissionSet>

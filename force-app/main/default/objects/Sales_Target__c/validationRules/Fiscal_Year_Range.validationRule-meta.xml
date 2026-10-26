@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>true</active>
+    <errorConditionFormula>OR(Fiscal_Year__c &lt; 2025,Fiscal_Year__c &gt; 2030)</errorConditionFormula>
+    <errorDisplayField>Fiscal_Year__c</errorDisplayField>
+    <errorMessage>Year must be between 2025 and 2030.</errorMessage>
+    <fullName>Fiscal_Year_Range</fullName>
+</ValidationRule>
