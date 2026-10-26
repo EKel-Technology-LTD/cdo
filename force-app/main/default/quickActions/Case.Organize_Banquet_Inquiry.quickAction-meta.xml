@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<QuickAction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>從目前 Case 開啟餐會分類引導，僅傳入原 recordId。</description>
+    <flowDefinition>Banquet_Case_Classify</flowDefinition>
+    <label>整理餐會諮詢</label>
+    <optionsCreateFeedItem>false</optionsCreateFeedItem>
+    <type>Flow</type>
+</QuickAction>
