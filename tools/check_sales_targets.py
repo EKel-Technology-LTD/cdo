@@ -131,7 +131,8 @@ class SalesTargetContract(unittest.TestCase):
             for item in sections[section].findall('.//m:layoutItems',NS):
                 self.assertEqual(text(item,'behavior'),'Readonly'); readonly.append(text(item,'field'))
         self.assertTrue(set(SYSTEM)|set(FORMULAS) <= set(readonly))
-        self.assertEqual([item.text for item in r.findall('m:excludeButtons',NS)], ['Sharing'])
+        # Salesforce rejected Sharing as an unsupported standard action (0AfAu00000iMclFKAS).
+        self.assertNotIn('Sharing', [item.text for item in r.findall('m:excludeButtons',NS)])
         self.assertNotIn('OwnerId', [item.text for item in r.findall('.//m:field',NS)])
         self.assertEqual(text(r,'relatedLists/relatedList'),'RelatedEntityHistoryList')
         self.assertEqual([text(i,'actionName') for i in r.findall('m:platformActionList/m:platformActionListItems',NS)],['Edit','Delete'])
