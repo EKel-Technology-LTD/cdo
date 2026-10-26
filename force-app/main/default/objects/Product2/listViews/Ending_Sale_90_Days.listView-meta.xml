@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ListView xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Ending_Sale_90_Days</fullName>
+    <booleanFilter>1 OR 2</booleanFilter>
     <columns>PRODUCT2.NAME</columns>
     <columns>Model_Number__c</columns>
     <columns>Product_Line__c</columns>
@@ -10,6 +11,11 @@
         <field>PRODUCT2.DISCONTINUED_DATE</field>
         <operation>equals</operation>
         <value>NEXT_N_DAYS:90</value>
+    </filters>
+    <filters>
+        <field>PRODUCT2.DISCONTINUED_DATE</field>
+        <operation>equals</operation>
+        <value>TODAY</value>
     </filters>
     <label>90 天內停售</label>
 </ListView>
