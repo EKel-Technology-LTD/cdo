@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Warranty_Registration_Initialized__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>Internal first-registration marker; never reset. Not exposed to warranty personas.</inlineHelpText>
+    <label>Warranty Registration Initialized</label>
+    <type>Checkbox</type>
+</CustomField>

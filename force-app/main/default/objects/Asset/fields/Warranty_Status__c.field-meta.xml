@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Warranty_Status__c</fullName>
+    <formula>IF(ISBLANK(PurchaseDate),"未登錄",IF(ISBLANK(Warranty_End_Date__c),"",IF(Warranty_End_Date__c&lt;TODAY(),"已過保",IF(Warranty_End_Date__c&lt;=TODAY()+30,"30 天內到期","保固中"))))</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <label>保固狀態</label>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

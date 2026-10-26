@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Warranty_End_Date__c</fullName>
+    <formula>IF(OR(ISBLANK(PurchaseDate),ISBLANK(Product2Id),ISBLANK(Product2.Warranty_Months__c)),NULL,ADDMONTHS(PurchaseDate,Product2.Warranty_Months__c+BLANKVALUE(Extended_Warranty_Months__c,0))-1)</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <label>保固到期日</label>
+    <required>false</required>
+    <type>Date</type>
+</CustomField>

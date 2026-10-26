@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Registered_Requires_Warranty_Term</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Status,"Registered"),NOT(ISBLANK(Product2Id)),ISBLANK(Product2.Warranty_Months__c))</errorConditionFormula>
+    <errorMessage>產品保固月數未設定，無法登錄保固。</errorMessage>
+</ValidationRule>

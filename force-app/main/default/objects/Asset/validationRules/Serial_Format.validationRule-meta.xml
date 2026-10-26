@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Serial_Format</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(Registered_Serial__c)),NOT(REGEX(Registered_Serial__c,"^[A-Z0-9-]{8,30}$")))</errorConditionFormula>
+    <errorMessage>產品序號只能使用大寫英文、數字與連字號（8–30 碼）。</errorMessage>
+</ValidationRule>

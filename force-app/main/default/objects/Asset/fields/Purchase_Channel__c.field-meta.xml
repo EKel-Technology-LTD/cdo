@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Purchase_Channel__c</fullName>
+    <label>購買通路</label>
+    <required>false</required>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Official_Store</fullName>
+                <default>false</default>
+                <label>官方網路商店</label>
+            </value>
+            <value>
+                <fullName>Dealer</fullName>
+                <default>false</default>
+                <label>經銷商門市</label>
+            </value>
+            <value>
+                <fullName>Marketplace</fullName>
+                <default>false</default>
+                <label>電商平台</label>
+            </value>
+            <value>
+                <fullName>Retail_Chain</fullName>
+                <default>false</default>
+                <label>量販通路</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
