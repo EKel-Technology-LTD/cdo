@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Overdue__c</fullName>
+    <formula>AND(NOT(ISBLANK(Received_Date__c)),TODAY()-Received_Date__c&gt;7,NOT(OR(ISPICKVAL(Repair_Status__c,"Repaired"),ISPICKVAL(Repair_Status__c,"Shipped_Back"),ISPICKVAL(Repair_Status__c,"Unrepairable"),ISPICKVAL(Repair_Status__c,"Cancelled"))))</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <label>Overdue</label>
+    <type>Checkbox</type>
+</CustomField>
