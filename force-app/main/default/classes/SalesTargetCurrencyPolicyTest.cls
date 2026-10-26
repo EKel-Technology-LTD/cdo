@@ -90,6 +90,12 @@ private class SalesTargetCurrencyPolicyTest {
             blocked(Database.insert(invalidYear,false),'Year must be between 2025 and 2030.');
             Sales_Target__c negative = target(human.Id,'Q4'); negative.Target_Amount__c = -1;
             blocked(Database.insert(negative,false),'Target amount must be greater than 0.');
+            Sales_Target__c missingRep = target(null,'Q4');
+            blocked(Database.insert(missingRep,false),'Sales Rep is required.');
+            Sales_Target__c assigned = target(human.Id,'Q4');
+            insert assigned;
+            blocked(Database.update(new Sales_Target__c(Id=assigned.Id,Sales_Rep__c=null),false),
+                'Sales Rep is required.');
             Sales_Target__c inactive = target(persona('inactive').Id,'Q4');
             Database.SaveResult inactiveResult = Database.insert(inactive,false);
             Assert.isFalse(inactiveResult.isSuccess(), 'Required active-user filter must reject inactive reps');

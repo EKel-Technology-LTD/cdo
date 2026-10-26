@@ -15,6 +15,6 @@
     <referenceTo>User</referenceTo>
     <relationshipLabel>Sales Quarterly Targets</relationshipLabel>
     <relationshipName>Sales_Quarterly_Targets</relationshipName>
-    <required>true</required>
+    <required>false</required>
     <type>Lookup</type>
 </CustomField>

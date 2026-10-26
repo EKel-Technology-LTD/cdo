@@ -23,7 +23,7 @@ FIELDS = {
     'Target_Key__c': ('Target Unique Key', 'Text'),
     'Notes__c': ('Notes', 'TextArea'),
 }
-REQUIRED = {'Sales_Rep__c', 'Fiscal_Year__c', 'Fiscal_Quarter__c', 'Target_Amount__c'}
+REQUIRED = { 'Fiscal_Year__c', 'Fiscal_Quarter__c', 'Target_Amount__c'}
 SYSTEM = ['Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c', 'Target_Key__c']
 FORMULAS = {
     'Period_Start__c': 'DATE(Fiscal_Year__c,CASE(TEXT(Fiscal_Quarter__c),"Q1",1,"Q2",4,"Q3",7,"Q4",10,1),1)',
@@ -69,6 +69,7 @@ class SalesTargetContract(unittest.TestCase):
         r=field('Sales_Rep__c')
         for path,value in {'referenceTo':'User','relationshipName':'Sales_Quarterly_Targets','lookupFilter/active':'true','lookupFilter/isOptional':'false','lookupFilter/filterItems/field':'User.IsActive','lookupFilter/filterItems/operation':'equals','lookupFilter/filterItems/value':'true'}.items(): self.assertEqual(text(r,path),value)
         self.assertIsNone(text(r,'deleteConstraint'), 'User lookups cannot declare a delete constraint')
+        self.assertEqual(text(r,'required'),'false')
         r=field('Fiscal_Quarter__c')
         self.assertEqual(text(r,'valueSet/restricted'),'true')
         values=r.findall('m:valueSet/m:valueSetDefinition/m:value',NS)
@@ -82,6 +83,11 @@ class SalesTargetContract(unittest.TestCase):
     def test_validations_and_system_boundary(self):
         self.assertEqual(text(rule('Target_Amount_Positive'),'errorConditionFormula'),'Target_Amount__c <= 0')
         self.assertEqual(text(rule('Fiscal_Year_Range'),'errorConditionFormula'),'OR(Fiscal_Year__c < 2025,Fiscal_Year__c > 2030)')
+        required=rule('Sales_Rep_Required')
+        self.assertEqual(text(required,'errorConditionFormula'),'ISBLANK(Sales_Rep__c)')
+        self.assertEqual(text(required,'errorDisplayField'),'Sales_Rep__c')
+        self.assertEqual(text(required,'errorMessage'),'Sales Rep is required.')
+        self.assertEqual(text(required,'active'),'true')
         expected='AND(NOT($Permission.Sales_Target_System_Write),OR(AND(ISNEW(),OR('+','.join(f'NOT(ISBLANK({f}))' for f in SYSTEM)+')),AND(NOT(ISNEW()),OR('+','.join(f'ISCHANGED({f})' for f in SYSTEM)+'))))'
         r=rule('System_Fields_Protected')
         self.assertEqual(text(r,'errorConditionFormula'),expected)
@@ -104,7 +110,7 @@ class SalesTargetContract(unittest.TestCase):
             for grant in grants:
                 f=grant.findtext('field').split('.')[1]
                 self.assertEqual(grant.findtext('readable'),'true')
-                self.assertEqual(grant.findtext('editable'),'true' if manage and f in ['Product_Line__c','Notes__c'] else 'false')
+                self.assertEqual(grant.findtext('editable'),'true' if manage and f in ['Product_Line__c','Notes__c','Sales_Rep__c'] else 'false')
             for flag in ['allowCreate','allowEdit','allowDelete']: self.assertEqual(r.findtext('objectPermissions/'+flag),str(manage).lower())
             self.assertEqual(r.findtext('objectPermissions/allowRead'),'true')
             for flag in ['modifyAllRecords','viewAllRecords','viewAllFields']: self.assertEqual(r.findtext('objectPermissions/'+flag),'false')
@@ -119,6 +125,7 @@ class SalesTargetContract(unittest.TestCase):
         sections={text(s,'label'):s for s in r.findall('m:layoutSections',NS)}
         setup=sections['Target Setup'].findall('.//m:layoutItems',NS)
         self.assertEqual([text(i,'field') for i in setup],['Sales_Rep__c','Fiscal_Year__c','Fiscal_Quarter__c','Product_Line__c','Target_Amount__c','Notes__c'])
+        self.assertEqual(text(setup[0],'behavior'),'Required')
         readonly=[]
         for section in ['Attainment','System']:
             for item in sections[section].findall('.//m:layoutItems',NS):
