@@ -129,10 +129,10 @@ private class SalesTargetCurrencyPolicyTest {
             update new Sales_Target__c(Id=saved.Id,Actual_Amount__c=85000,Won_Opportunity_Count__c=1,
                 Last_Calculated_At__c=DateTime.newInstance(2026,10,1,0,0,0),Target_Key__c='synthetic-test-only');
             Assert.areEqual('Near Target',reload(saved.Id).Attainment_Status__c);
-            Assert.areEqual(Decimal.valueOf('0.85'),reload(saved.Id).Attainment__c);
+            Assert.areEqual(Decimal.valueOf('85'),reload(saved.Id).Attainment__c);
             update new Sales_Target__c(Id=saved.Id,Actual_Amount__c=100000);
             Assert.areEqual('Achieved',reload(saved.Id).Attainment_Status__c);
-            Assert.areEqual(Decimal.valueOf('1'),reload(saved.Id).Attainment__c);
+            Assert.areEqual(Decimal.valueOf('100'),reload(saved.Id).Attainment__c);
             update new Sales_Target__c(Id=saved.Id,Actual_Amount__c=79999);
             Assert.areEqual('Behind',reload(saved.Id).Attainment_Status__c);
             update new Sales_Target__c(Id=saved.Id,Actual_Amount__c=80000);
