@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Purchase_Date_Not_Future</fullName>
+    <active>true</active>
+    <errorConditionFormula>PurchaseDate&gt;TODAY()</errorConditionFormula>
+    <errorMessage>購買日期不可晚於今天。</errorMessage>
+</ValidationRule>

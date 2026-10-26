@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Selling_Dealer__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <label>購買經銷商</label>
+    <lookupFilter>
+        <active>true</active>
+        <errorMessage>購買經銷商必須為企業帳戶。</errorMessage>
+        <filterItems>
+            <field>Account.IsPersonAccount</field>
+            <operation>equals</operation>
+            <value>false</value>
+        </filterItems>
+        <isOptional>false</isOptional>
+    </lookupFilter>
+    <referenceTo>Account</referenceTo>
+    <relationshipLabel>Warranty Sales</relationshipLabel>
+    <relationshipName>Warranty_Sales</relationshipName>
+    <required>false</required>
+    <type>Lookup</type>
+</CustomField>

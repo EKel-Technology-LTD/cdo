@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Invoice_Number_Format</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(Invoice_Number__c)),NOT(REGEX(Invoice_Number__c,"^[A-Z]{2}[0-9]{8}$")))</errorConditionFormula>
+    <errorMessage>發票號碼格式為 2 碼大寫英文加 8 碼數字，例如 AB12345678。</errorMessage>
+</ValidationRule>

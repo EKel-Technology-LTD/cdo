@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Registered_Requires_Purchase_Info</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Status,"Registered"),OR(ISBLANK(Product2Id),ISBLANK(PurchaseDate),ISBLANK(TEXT(Purchase_Channel__c)),ISBLANK(Registered_Serial__c)))</errorConditionFormula>
+    <errorMessage>登錄保固時請填寫產品、產品序號、購買日期與購買通路。</errorMessage>
+</ValidationRule>
