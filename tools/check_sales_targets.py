@@ -64,10 +64,11 @@ class SalesTargetContract(unittest.TestCase):
             self.assertEqual(text(field(name),'precision'),precision)
             self.assertEqual(text(field(name),'scale'),scale)
         self.assertEqual(text(field('Target_Amount__c'),'trackHistory'),'true')
-        self.assertEqual(text(field('Notes__c'),'length'),'255')
+        self.assertIsNone(text(field('Notes__c'),'length'), 'TextArea has a fixed 255-character limit; explicit length is rejected')
     def test_lookup_and_picklists(self):
         r=field('Sales_Rep__c')
-        for path,value in {'referenceTo':'User','deleteConstraint':'Restrict','lookupFilter/active':'true','lookupFilter/isOptional':'false','lookupFilter/filterItems/field':'User.IsActive','lookupFilter/filterItems/operation':'equals','lookupFilter/filterItems/value':'true'}.items(): self.assertEqual(text(r,path),value)
+        for path,value in {'referenceTo':'User','relationshipName':'Sales_Quarterly_Targets','lookupFilter/active':'true','lookupFilter/isOptional':'false','lookupFilter/filterItems/field':'User.IsActive','lookupFilter/filterItems/operation':'equals','lookupFilter/filterItems/value':'true'}.items(): self.assertEqual(text(r,path),value)
+        self.assertIsNone(text(r,'deleteConstraint'), 'User lookups cannot declare a delete constraint')
         r=field('Fiscal_Quarter__c')
         self.assertEqual(text(r,'valueSet/restricted'),'true')
         values=r.findall('m:valueSet/m:valueSetDefinition/m:value',NS)
