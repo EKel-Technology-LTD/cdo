@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Rebate_Rate__c</fullName>
+    <precision>3</precision>
+    <scale>1</scale>
+    <inlineHelpText>Maximum rebate: Gold 8%, Silver 5%, Bronze 3%.</inlineHelpText>
+    <label>Rebate Rate</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <type>Percent</type>
+</CustomField>

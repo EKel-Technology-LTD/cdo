@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Draft_Only</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT($Permission.Manage_Dealer_Agreements),OR(NOT(ISPICKVAL(Agreement_Status__c,"Draft")),AND(NOT(ISNEW()),NOT(ISPICKVAL(PRIORVALUE(Agreement_Status__c),"Draft")))))</errorConditionFormula>
+    <errorMessage>Sales representatives can create and edit Draft agreements only.</errorMessage>
+</ValidationRule>

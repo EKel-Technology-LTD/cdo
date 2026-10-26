@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Intake_Method__c</fullName>
+    <label>Intake Method</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Store_Dropoff</fullName>
+                <default>false</default>
+                <label>Store Drop-off</label>
+            </value>
+            <value>
+                <fullName>Courier_Pickup</fullName>
+                <default>false</default>
+                <label>Courier Pickup</label>
+            </value>
+            <value>
+                <fullName>Onsite</fullName>
+                <default>false</default>
+                <label>On-site Repair</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet>
+    <flowAccesses>
+        <enabled>true</enabled>
+        <flow>Banquet_Case_Classify</flow>
+    </flowAccesses>
+</PermissionSet>

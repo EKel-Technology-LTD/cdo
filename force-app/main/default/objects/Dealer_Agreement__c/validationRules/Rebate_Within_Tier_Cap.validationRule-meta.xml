@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Rebate_Within_Tier_Cap</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(NOT(ISBLANK(Rebate_Rate__c)),OR(AND(ISPICKVAL(Dealer_Tier__c,"Gold"),Rebate_Rate__c&gt;0.08),AND(ISPICKVAL(Dealer_Tier__c,"Silver"),Rebate_Rate__c&gt;0.05),AND(ISPICKVAL(Dealer_Tier__c,"Bronze"),Rebate_Rate__c&gt;0.03)))</errorConditionFormula>
+    <errorDisplayField>Rebate_Rate__c</errorDisplayField>
+    <errorMessage>Rebate rate exceeds the cap for this dealer tier (Gold 8%, Silver 5%, Bronze 3%).</errorMessage>
+</ValidationRule>
