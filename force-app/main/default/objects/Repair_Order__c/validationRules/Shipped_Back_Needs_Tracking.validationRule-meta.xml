@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Shipped_Back_Needs_Tracking</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Repair_Status__c,"Shipped_Back"),NOT(ISPICKVAL(Intake_Method__c,"Onsite")),ISBLANK(Return_Tracking_Number__c))</errorConditionFormula>
+    <errorDisplayField>Return_Tracking_Number__c</errorDisplayField>
+    <errorMessage>Please enter the tracking number when shipping back.</errorMessage>
+</ValidationRule>

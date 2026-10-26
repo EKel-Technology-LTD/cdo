@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Payment_Terms__c</fullName>
+    <label>Payment Terms</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Net_30</fullName>
+                <default>false</default>
+                <label>Net 30 days</label>
+            </value>
+            <value>
+                <fullName>Net_60</fullName>
+                <default>false</default>
+                <label>Net 60 days</label>
+            </value>
+            <value>
+                <fullName>COD</fullName>
+                <default>false</default>
+                <label>Cash on Delivery</label>
+            </value>
+            <value>
+                <fullName>Prepaid</fullName>
+                <default>false</default>
+                <label>Prepaid</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

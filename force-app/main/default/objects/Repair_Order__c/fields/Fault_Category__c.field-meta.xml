@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Fault_Category__c</fullName>
+    <label>Fault Category</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>No_Power</fullName>
+                <default>false</default>
+                <label>No Power</label>
+            </value>
+            <value>
+                <fullName>Abnormal_Noise</fullName>
+                <default>false</default>
+                <label>Abnormal Noise</label>
+            </value>
+            <value>
+                <fullName>Odor</fullName>
+                <default>false</default>
+                <label>Odor</label>
+            </value>
+            <value>
+                <fullName>Leakage</fullName>
+                <default>false</default>
+                <label>Leakage</label>
+            </value>
+            <value>
+                <fullName>Sensor_Error</fullName>
+                <default>false</default>
+                <label>Panel or Sensor Error</label>
+            </value>
+            <value>
+                <fullName>Poor_Performance</fullName>
+                <default>false</default>
+                <label>Poor Performance</label>
+            </value>
+            <value>
+                <fullName>Physical_Damage</fullName>
+                <default>false</default>
+                <label>Physical Damage</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

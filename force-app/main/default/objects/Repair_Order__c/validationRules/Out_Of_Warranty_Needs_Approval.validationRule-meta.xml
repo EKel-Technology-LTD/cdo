@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Out_Of_Warranty_Needs_Approval</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Repair_Status__c,"In_Repair"),OR(ISPICKVAL(Warranty_Coverage__c,"Out_Of_Warranty"),ISPICKVAL(Warranty_Coverage__c,"Customer_Damage")),NOT(Customer_Approved_Quote__c))</errorConditionFormula>
+    <errorDisplayField>Repair_Status__c</errorDisplayField>
+    <errorMessage>Out-of-warranty or customer-damage repairs require the customer's recorded quote approval before changing to "In Repair".</errorMessage>
+</ValidationRule>
