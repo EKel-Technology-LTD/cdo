@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Registered_This_Month</fullName>
+    <columns>ASSET.NAME</columns>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>Registered_Serial__c</columns>
+    <columns>Registered_At__c</columns>
+    <columns>Registration_Source__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Registered_At__c</field>
+        <operation>equals</operation>
+        <value>THIS_MONTH</value>
+    </filters>
+    <label>本月新登錄</label>
+    <sharedTo>
+        <allInternalUsers>true</allInternalUsers>
+    </sharedTo>
+</ListView>
