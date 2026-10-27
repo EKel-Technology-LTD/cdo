@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "sales-target-preflight",
+      "type": "bash",
+      "file": "sales-target-preflight.sh",
+      "deploymentEffect": "data",
+      "timeoutMinutes": 10,
+      "reviewPrerequisite": true
+    }
+  ]
+}
