@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Dealer_Required_For_Dealer_Channel</fullName>
+    <active>true</active>
+    <errorConditionFormula>AND(ISPICKVAL(Purchase_Channel__c,"Dealer"),ISBLANK(Selling_Dealer__c))</errorConditionFormula>
+    <errorMessage>購買通路為經銷商門市時，請選擇購買經銷商。</errorMessage>
+</ValidationRule>

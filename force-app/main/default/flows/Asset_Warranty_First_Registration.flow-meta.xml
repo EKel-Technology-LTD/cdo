@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <assignments>
+        <name>Initialize_Registration</name>
+        <label>Initialize first registration</label>
+        <locationX>176</locationX>
+        <locationY>158</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Registered_At__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>Initial_Registered_At</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Registration_Source__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>Initial_Registration_Source</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Warranty_Registration_Initialized__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <description>Default only blank values on first creation or transition into Registered. Preserve supplied values and never reset the internal marker. No queries or DML.</description>
+    <environments>Default</environments>
+    <formulas>
+        <name>Initial_Registered_At</name>
+        <dataType>DateTime</dataType>
+        <expression>IF(ISBLANK({!$Record.Registered_At__c}),{!$Flow.CurrentDateTime},{!$Record.Registered_At__c})</expression>
+    </formulas>
+    <formulas>
+        <name>Initial_Registration_Source</name>
+        <dataType>String</dataType>
+        <expression>IF(ISBLANK(TEXT({!$Record.Registration_Source__c})),"Agent",TEXT({!$Record.Registration_Source__c}))</expression>
+    </formulas>
+    <interviewLabel>Asset Warranty First Registration {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Asset Warranty First Registration</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Initialize_Registration</targetReference>
+        </connector>
+        <filterFormula>AND(ISPICKVAL({!$Record.Status},"Registered"),NOT({!$Record.Warranty_Registration_Initialized__c}),OR(ISNEW(),NOT(ISPICKVAL({!$Record__Prior.Status},"Registered"))))</filterFormula>
+        <object>Asset</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>

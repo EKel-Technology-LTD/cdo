@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Warranty_Expiring_30_Days</fullName>
+    <columns>ASSET.NAME</columns>
+    <columns>ACCOUNT.NAME</columns>
+    <columns>Registered_Serial__c</columns>
+    <columns>Warranty_End_Date__c</columns>
+    <columns>Purchase_Channel__c</columns>
+    <filterScope>Everything</filterScope>
+    <filters>
+        <field>Warranty_Status__c</field>
+        <operation>equals</operation>
+        <value>30 天內到期</value>
+    </filters>
+    <label>保固 30 天內到期</label>
+    <sharedTo>
+        <allInternalUsers>true</allInternalUsers>
+    </sharedTo>
+</ListView>

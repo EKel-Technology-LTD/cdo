@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <formula>IF(Attainment__c &gt;= 1,"Achieved",IF(Attainment__c &gt;= 0.8,"Near Target","Behind"))</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <fullName>Attainment_Status__c</fullName>
+    <label>Attainment Status</label>
+    <type>Text</type>
+</CustomField>
