@@ -3,14 +3,10 @@
 # canonical Target_Key__c backfill. NEVER deploys metadata or disables protections.
 # Post-baseline migration only: stage 1 metadata must already be installed.
 # Never register as a pre-deployment review prerequisite. Stage 2 requires its receipt.
-# Not registered for execution until the published Orchard target-bound release
-# input and machine execution contract replaces the legacy input adapter below.
-# Runner configuration (not credentials): SALES_TARGET_MACHINE_ORG is an already
-# authenticated machine alias; SALES_TARGET_RELEASE_CONTEXT is an absolute JSON
-# file supplied by the authorized release operator with orgId, machineUserId,
-# operationsOwnerId, artifactSha, approvalReference, syntheticOnly=true,
-# writesQuiesced=true, expiresAt (UTC ISO8601). Keep writers quiesced through
-# stage-2 activation; this action never resumes writers or grants human access.
+# Not registered for execution. Formal target-bound releaseInputs and machine
+# execution binding must be published and verified before this adapter is enabled.
+# Legacy environment variables are NOT an authorization or execution contract.
+# Keep writers quiesced through stage-2 activation; no automatic writer resume.
 set -euo pipefail
 : "${ORCHARD_TARGET_ORG:?Orchard must supply the authenticated target alias}"
 [[ $# -eq 1 && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target arguments disagree' >&2; exit 1; }
@@ -20,8 +16,6 @@ python3 - "$1" <<'PY'
 import datetime as dt
 import hashlib
 import json
-import os
-from pathlib import Path
 import re
 import subprocess
 import sys
@@ -198,6 +192,20 @@ def audit_currencies(rows, today):
             bad = system_query('SELECT Id FROM OpportunityLineItem WHERE (' + ' OR '.join(line_conditions) + ') AND (CurrencyIsoCode != ' + quote(CORPORATE) + ' OR Opportunity.CurrencyIsoCode != ' + quote(CORPORATE) + ') LIMIT 1')
             require(not bad, 'Foreign eligible opportunity/product-line currency; conversion is out of scope')
 
+def verify_sales_rep_metadata(metadata):
+    require(isinstance(metadata, dict), 'Missing Sales Rep metadata')
+    expected = {'type': 'Lookup', 'referenceTo': 'User', 'label': 'Sales Rep',
+                'relationshipName': 'Sales_Quarterly_Targets',
+                'relationshipLabel': 'Sales Quarterly Targets', 'required': False}
+    for name, value in expected.items():
+        require(name in metadata and type(metadata[name]) is type(value) and metadata[name] == value,
+                'Sales Rep preservation contract differs or is unverified: ' + name)
+    require(not metadata.get('lookupFilter'), 'Stage-1 main metadata is not installed: active-only filter must be removed before backfill')
+    # An omitted attribute is NOT evidence of Restrict. Preserve the existing field;
+    # resolve this prerequisite evidence gap, never add a constraint speculatively.
+    require(metadata.get('deleteConstraint') == 'Restrict',
+            'Sales Rep deletion restriction is unverified or incompatible; prerequisite evidence required before migration')
+
 def metadata_gates():
     entity = one(query("SELECT DurableId FROM EntityDefinition WHERE QualifiedApiName = 'Sales_Target__c'", True), 'target object')['DurableId']
     for name in ('System_Fields_Protected', 'Sales_Rep_Required', 'Active_Sales_Rep_On_Assignment'):
@@ -220,8 +228,7 @@ def metadata_gates():
         field = one(query('SELECT Id FROM CustomField WHERE TableEnumOrId = ' + quote(entity) + ' AND DeveloperName = ' + quote(name), True), name)
         metadata = one(query('SELECT Metadata FROM CustomField WHERE Id = ' + quote(field['Id']), True), name + ' metadata')['Metadata']
         if name == 'Sales_Rep':
-            require(not metadata.get('lookupFilter'), 'Stage-1 main metadata is not installed: active-only filter must be removed before backfill')
-            require(metadata.get('referenceTo') == 'User' and metadata.get('relationshipName') == 'Sales_Quarterly_Targets', 'Unexpected Sales Rep relationship')
+            verify_sales_rep_metadata(metadata)
         else:
             require(metadata.get('type') == 'Text' and metadata.get('length') == 80 and metadata.get('unique') is True and metadata.get('caseSensitive') is False and metadata.get('externalId') is True, 'Unique key contract mismatch')
 
@@ -257,19 +264,9 @@ System.debug(LoggingLevel.ERROR, 'ST_PREFLIGHT:' + JSON.serialize(saved));
     emit('chunk_verified', count=len(chunk), idsHash=hashlib.sha256(json.dumps(sorted(expected_keys)).encode()).hexdigest())
 
 try:
-    context_path = Path(os.environ.get('SALES_TARGET_RELEASE_CONTEXT', ''))
-    require(context_path.is_absolute() and context_path.is_file(), 'Runner must supply SALES_TARGET_RELEASE_CONTEXT authorization file')
-    CONTEXT = json.loads(context_path.read_text())
-    ORG = sfid(CONTEXT.get('orgId'), '00D')
-    USER = sfid(CONTEXT.get('machineUserId'), '005')
-    owner = sfid(CONTEXT.get('operationsOwnerId'), '005')
-    require(CONTEXT.get('syntheticOnly') is True and CONTEXT.get('writesQuiesced') is True, 'Only synthetic data in an authorized quiesced release window is allowed')
-    require(isinstance(CONTEXT.get('approvalReference'), str) and CONTEXT['approvalReference'].strip(), 'Missing release authorization reference')
-    require(isinstance(CONTEXT.get('artifactSha'), str) and re.fullmatch(r'[0-9a-f]{40}', CONTEXT['artifactSha']), 'Missing pinned artifact revision')
-    CONTEXT['expiresAt'] = parse_expiry(CONTEXT.get('expiresAt'))
-    check_window()
-    MACHINE = os.environ.get('SALES_TARGET_MACHINE_ORG')
-    require(MACHINE, 'Runner must supply an already authenticated machine alias; no impersonation or credential acquisition')
+    # Deliberate fail-closed barrier, not a configurable override. Replace only after
+    # the published platform binding is verified; legacy inputs cannot unlock it.
+    raise GateError('Formal target-bound releaseInputs and machine execution binding are not verified; migration is disabled')
     org = one(query('SELECT Id,IsSandbox FROM Organization'), 'organization')
     require(org['Id'] == ORG and org['IsSandbox'] is True, 'Target is not the authorized nonproduction org')
     metadata_gates()

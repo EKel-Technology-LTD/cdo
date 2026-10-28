@@ -13,7 +13,8 @@ body = SOURCE.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
 parsed = ast.parse(body)
 # Load only declarations needed by pure tests, not the action's execution block.
 names = {'GateError', 'require', 'sfid', 'canonical', 'audit_keys', 'period',
-         'previous_quarter', 'parse_expiry', 'check_window', 'formula_matches'}
+         'previous_quarter', 'parse_expiry', 'check_window', 'formula_matches',
+         'verify_sales_rep_metadata'}
 nodes = [n for n in parsed.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in names]
 nodes += [n for n in parsed.body if isinstance(n, ast.Assign) and
           any(isinstance(t, ast.Name) and t.id in {'STAGE_ONE_PROTECTION', 'PROTECTION_MESSAGE'} for t in n.targets)]
@@ -36,6 +37,74 @@ class MigrationGuards(unittest.TestCase):
     def test_no_pre_registration(self):
         manifest = json.loads((ROOT / 'force-app/scripts/pre/common/orchard-run.json').read_text())
         self.assertFalse(any(a['id'] == 'sales-target-preflight' for a in manifest['actions']))
+
+    def test_unverified_runner_binding_blocks_before_legacy_inputs(self):
+        execution = next(n for n in parsed.body if isinstance(n, ast.Try))
+        self.assertIsInstance(execution.body[0], ast.Raise)
+        self.assertIn('migration is disabled', ast.literal_eval(execution.body[0].exc.args[0]))
+
+    def test_no_legacy_environment_authorization_adapter(self):
+        self.assertNotIn('SALES_TARGET_RELEASE_CONTEXT', body)
+        self.assertNotIn('SALES_TARGET_MACHINE_ORG', body)
+        self.assertNotIn('os.environ', body)
+
+    def test_migration_remains_unregistered_in_all_manifests(self):
+        for manifest in (ROOT / 'force-app').rglob('orchard-run.json'):
+            with self.subTest(manifest=manifest):
+                actions = json.loads(manifest.read_text())['actions']
+                self.assertFalse(any(a.get('file') == SOURCE.name for a in actions))
+
+    def sales_rep_metadata(self):
+        # Synthetic fixture for guard logic, NOT an org read or delivery evidence.
+        return dict(type='Lookup', referenceTo='User', label='Sales Rep',
+                    relationshipName='Sales_Quarterly_Targets',
+                    relationshipLabel='Sales Quarterly Targets', required=False,
+                    deleteConstraint='Restrict')
+
+    def test_explicit_restriction_contract_accepted(self):
+        ns['verify_sales_rep_metadata'](self.sales_rep_metadata())
+
+    def test_omitted_deletion_constraint_is_not_restriction_evidence(self):
+        metadata = self.sales_rep_metadata()
+        del metadata['deleteConstraint']
+        with self.assertRaisesRegex(ns['GateError'], 'deletion restriction is unverified'):
+            ns['verify_sales_rep_metadata'](metadata)
+
+    def test_clear_or_cascade_deletion_rejected(self):
+        for constraint in ('SetNull', 'Cascade', None, ''):
+            metadata = self.sales_rep_metadata()
+            metadata['deleteConstraint'] = constraint
+            with self.subTest(constraint=constraint), self.assertRaises(ns['GateError']):
+                ns['verify_sales_rep_metadata'](metadata)
+
+    def test_preservation_contract_changes_rejected(self):
+        for field in self.sales_rep_metadata():
+            metadata = self.sales_rep_metadata()
+            del metadata[field]
+            with self.subTest(field=field), self.assertRaises(ns['GateError']):
+                ns['verify_sales_rep_metadata'](metadata)
+
+    def test_required_false_is_not_coerced_or_rewritten(self):
+        for required in (True, 'false', 0, None):
+            metadata = self.sales_rep_metadata()
+            metadata['required'] = required
+            with self.subTest(required=required), self.assertRaises(ns['GateError']):
+                ns['verify_sales_rep_metadata'](metadata)
+
+    def test_active_lookup_filter_blocks_migration(self):
+        metadata = self.sales_rep_metadata()
+        metadata['lookupFilter'] = {'active': True}
+        with self.assertRaises(ns['GateError']):
+            ns['verify_sales_rep_metadata'](metadata)
+
+    def test_required_rule_source_preserved(self):
+        path = ROOT / 'force-app/main/default/objects/Sales_Target__c/validationRules/Sales_Rep_Required.validationRule-meta.xml'
+        rule = ET.parse(path)
+        prefix = '{http://soap.sforce.com/2006/04/metadata}'
+        self.assertEqual('true', rule.findtext(prefix + 'active'))
+        self.assertEqual('ISBLANK(Sales_Rep__c)', rule.findtext(prefix + 'errorConditionFormula'))
+        self.assertEqual('Sales_Rep__c', rule.findtext(prefix + 'errorDisplayField'))
+        self.assertEqual('Sales Rep is required.', rule.findtext(prefix + 'errorMessage'))
 
     def test_exact_protection_matches_stage_one_source(self):
         xml = ET.parse(ROOT / 'force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml')
