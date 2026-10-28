@@ -5,7 +5,7 @@
   "description": "Salesforce App",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**/*.js",
-    "test": "npm run test:migration && npm run test:unit",
+    "test": "npm run test:migration && npm run test:actuals && npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",
     "test:unit:debug": "sfdx-lwc-jest --debug",
@@ -14,7 +14,8 @@
     "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
     "prepare": "husky || true",
     "precommit": "lint-staged",
-    "test:migration": "python3 -B tools/test_sales_target_migration.py"
+    "test:migration": "python3 -B tools/test_sales_target_migration.py",
+    "test:actuals": "python3 -B tools/test_sales_target_actuals.py"
   },
   "devDependencies": {
     "@lwc/eslint-plugin-lwc": "^3.1.0",

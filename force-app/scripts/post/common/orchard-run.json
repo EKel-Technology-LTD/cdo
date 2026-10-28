@@ -24,6 +24,20 @@
         "contextFileEnv": "SALES_TARGET_RELEASE_CONTEXT",
         "machineOrgEnv": "SALES_TARGET_MACHINE_ORG"
       }
+    },
+    {
+      "id": "sales-target-activate",
+      "type": "bash",
+      "file": "sales-target-activate.sh",
+      "timeoutMinutes": 10,
+      "scopeMode": "selected_delivery",
+      "deploymentEffect": "data",
+      "releaseInputs": {
+        "authorizationToken": "SALES_TARGET_AUTHORIZATION",
+        "machineAuthToken": "SALES_TARGET_MACHINE_AUTH",
+        "contextFileEnv": "SALES_TARGET_RELEASE_CONTEXT",
+        "machineOrgEnv": "SALES_TARGET_MACHINE_ORG"
+      }
     }
   ]
 }

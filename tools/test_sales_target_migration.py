@@ -698,7 +698,8 @@ class StageTwoSource(unittest.TestCase):
 
     def test_regressions_are_in_standard_package_test_command(self):
         scripts = json.loads((ROOT / 'package.json').read_text())['scripts']
-        self.assertEqual('npm run test:migration && npm run test:unit', scripts['test'])
+        self.assertEqual('npm run test:migration && npm run test:actuals && npm run test:unit', scripts['test'])
+        self.assertEqual('python3 -B tools/test_sales_target_actuals.py', scripts['test:actuals'])
         self.assertEqual('python3 -B tools/test_sales_target_migration.py', scripts['test:migration'])
 
 
