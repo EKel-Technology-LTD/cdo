@@ -4,14 +4,9 @@
     <availability>online</availability>
     <displayType>massActionButton</displayType>
     <encodingKey>UTF-8</encodingKey>
-    <hasMenubar>false</hasMenubar>
-    <hasScrollbars>true</hasScrollbars>
-    <hasToolbar>false</hasToolbar>
-    <isResizable>true</isResizable>
     <linkType>url</linkType>
     <masterLabel>Create Product</masterLabel>
     <openType>replace</openType>
-    <position>none</position>
     <requireRowSelection>false</requireRowSelection>
     <url>/lightning/cmp/c__productDateEditor?c__mode=create</url>
 </WebLink>
