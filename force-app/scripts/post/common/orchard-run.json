@@ -11,11 +11,11 @@
       "metadataBoundary": {
         "after": [
           "force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml",
-          "force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml",
-          "force-app/main/default/objects/Sales_Target__c/validationRules/Sales_Rep_Required.validationRule-meta.xml"
+          "force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml"
         ],
         "before": [
-          "force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml"
+          "force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml",
+          "force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml"
         ]
       },
       "releaseInputs": {

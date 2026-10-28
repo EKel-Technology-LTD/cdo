@@ -88,7 +88,9 @@ class MigrationGuards(unittest.TestCase):
                 self.assertTrue(path.startswith('force-app/main/default/'))
         self.assertTrue(any('Sales_Rep__c.field-meta.xml' in p for p in boundary['after']))
         self.assertTrue(any('Active_Sales_Rep_On_Assignment' in p for p in boundary['after']))
-        self.assertEqual(['force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml'], boundary['before'])
+        self.assertEqual(['force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml',
+                          'force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml'], boundary['before'])
+        self.assertFalse(any('Sales_Rep_Required.' in p for p in boundary['after']))
         # This is source-path validation, NOT proof of planner metadataPaths selection.
 
     def sales_rep_metadata(self):
@@ -143,13 +145,15 @@ class MigrationGuards(unittest.TestCase):
         self.assertEqual('Sales_Rep__c', rule.findtext(prefix + 'errorDisplayField'))
         self.assertEqual('Sales Rep is required.', rule.findtext(prefix + 'errorMessage'))
 
-    def test_exact_protection_matches_stage_one_source(self):
+    def test_stage_one_gate_is_not_replaced_with_stage_two(self):
         xml = ET.parse(ROOT / 'force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml')
         formula = xml.findtext('{http://soap.sforce.com/2006/04/metadata}errorConditionFormula')
-        self.assertTrue(ns['formula_matches'](formula, ns['STAGE_ONE_PROTECTION']))
+        self.assertFalse(ns['formula_matches'](formula, ns['STAGE_ONE_PROTECTION']))
+        expected = 'AND(NOT($Permission.Sales_Target_System_Write),OR(AND(ISNEW(),OR(NOT(ISBLANK(Actual_Amount__c)),NOT(ISBLANK(Won_Opportunity_Count__c)),NOT(ISBLANK(Last_Calculated_At__c)),NOT(ISBLANK(Target_Key__c)))),AND(NOT(ISNEW()),OR(ISCHANGED(Actual_Amount__c),ISCHANGED(Won_Opportunity_Count__c),ISCHANGED(Last_Calculated_At__c),ISCHANGED(Target_Key__c)))))'
+        self.assertTrue(ns['formula_matches'](expected, ns['STAGE_ONE_PROTECTION']))
         for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c', 'Target_Key__c'):
             with self.subTest(field=field):
-                self.assertFalse(ns['formula_matches'](formula.replace(field, 'Notes__c'), ns['STAGE_ONE_PROTECTION']))
+                self.assertFalse(ns['formula_matches'](expected.replace(field, 'Notes__c'), ns['STAGE_ONE_PROTECTION']))
 
     def test_missing_and_bypassed_protection_rejected(self):
         with self.assertRaises(ns['GateError']):
@@ -449,6 +453,254 @@ class ReleaseInputAdapter(unittest.TestCase):
         self.assertTrue(ns['formula_matches'](formula, formula))
         self.assertFalse(ns['formula_matches'](formula, formula.replace('A ', 'A')))
         self.assertFalse(ns['formula_matches']('Name="Ab"', 'Name="ab"'))
+
+
+# This intentionally small interpreter tests the committed formula's Boolean
+# branches, not Salesforce compilation, runtime order or text collation. Unknown
+# grammar raises rather than silently simulating a different Salesforce function.
+class FormulaModel:
+    def __init__(self, source):
+        pattern = re.compile(r'\s+|"[^"\\]*"|<>|[A-Za-z_$][A-Za-z0-9_.$]*|[(),&]')
+        self.tokens = []
+        offset = 0
+        while offset < len(source):
+            token = pattern.match(source, offset)
+            if token is None:
+                raise ValueError('Unsupported formula syntax at ' + source[offset:])
+            if not token.group().isspace():
+                self.tokens.append(token.group())
+            offset = token.end()
+        self.index = 0
+        self.tree = self.expression()
+        if self.index != len(self.tokens):
+            raise ValueError('Trailing formula tokens')
+
+    def take(self, expected=None):
+        token = self.tokens[self.index]
+        self.index += 1
+        if expected is not None and token != expected:
+            raise ValueError('Expected ' + expected)
+        return token
+
+    def peek(self):
+        return self.tokens[self.index] if self.index < len(self.tokens) else None
+
+    def expression(self):
+        left = self.concat()
+        if self.peek() == '<>':
+            self.take('<>')
+            return ('different', left, self.concat())
+        return left
+
+    def concat(self):
+        left = self.atom()
+        while self.peek() == '&':
+            self.take('&')
+            left = ('concat', left, self.atom())
+        return left
+
+    def atom(self):
+        token = self.take()
+        if token == '(':
+            result = self.expression()
+            self.take(')')
+            return result
+        if token.startswith('"'):
+            return ('literal', token[1:-1])
+        if self.peek() != '(':
+            return ('field', token)
+        self.take('(')
+        args = []
+        if self.peek() != ')':
+            args.append(self.expression())
+            while self.peek() == ',':
+                self.take(',')
+                args.append(self.expression())
+        self.take(')')
+        return ('call', token, args)
+
+    def evaluate(self, current, prior=None, machine=False):
+        def value(node):
+            kind = node[0]
+            if kind == 'literal':
+                return node[1]
+            if kind == 'field':
+                if node[1] == '$Permission.Sales_Target_System_Write':
+                    return machine
+                return current.get(node[1])
+            if kind == 'concat':
+                return str(value(node[1]) or '') + str(value(node[2]) or '')
+            if kind == 'different':
+                return value(node[1]) != value(node[2])
+            name, args = node[1:]
+            if name == 'ISNEW':
+                return prior is None
+            if name == 'ISCHANGED':
+                if len(args) != 1 or args[0][0] != 'field':
+                    raise ValueError('ISCHANGED requires a field')
+                field = args[0][1]
+                return prior is not None and current.get(field) != prior.get(field)
+            values = [value(arg) for arg in args]
+            if name == 'AND': return all(values)
+            if name == 'OR': return any(values)
+            if name == 'NOT': return not values[0]
+            if name == 'ISBLANK': return values[0] in (None, '')
+            if name == 'BLANKVALUE': return values[1] if values[0] in (None, '') else values[0]
+            if name == 'TEXT': return '' if values[0] is None else str(values[0])
+            if name == 'CASESAFEID':
+                candidate = values[0]
+                if candidate is None: return ''
+                if len(candidate) == 18: return ns['sfid'](candidate)
+                if len(candidate) != 15: raise ValueError('Unsupported Id')
+                alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'
+                return candidate + ''.join(alphabet[sum(1 << j for j, c in enumerate(candidate[i:i+5]) if c.isupper())] for i in (0, 5, 10))
+            raise ValueError('Unsupported formula function ' + name)
+        return value(self.tree)
+
+
+class StageTwoSource(unittest.TestCase):
+    prefix = '{http://soap.sforce.com/2006/04/metadata}'
+    flow_path = 'force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml'
+    rule_path = 'force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml'
+
+    def setUp(self):
+        self.flow = ET.parse(ROOT / self.flow_path).getroot()
+        self.rule = ET.parse(ROOT / self.rule_path).getroot()
+        self.formula = FormulaModel(self.rule.findtext(self.prefix + 'errorConditionFormula'))
+
+    def text(self, node, path):
+        return node.findtext('/'.join(self.prefix + part for part in path.split('/')))
+
+    def target(self, **changes):
+        target = row()
+        target['Target_Key__c'] = ns['canonical'](target)
+        target.update(changes)
+        return target
+
+    def test_manager_canonical_insert_without_actuals_allowed(self):
+        self.assertFalse(self.formula.evaluate(self.target()))
+
+    def test_manager_actuals_insert_including_zero_rejected(self):
+        for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c'):
+            for result in (0, 1, '2026-10-28T09:00:00Z'):
+                with self.subTest(field=field, result=result):
+                    self.assertTrue(self.formula.evaluate(self.target(**{field: result})))
+
+    def test_manager_actuals_change_and_clear_rejected(self):
+        for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c'):
+            for before, after in ((None, 0), (0, 1), (1, None)):
+                with self.subTest(field=field, before=before, after=after):
+                    self.assertTrue(self.formula.evaluate(self.target(**{field: after}), self.target(**{field: before})))
+
+    def test_unchanged_actuals_allow_manager_dimension_edit(self):
+        before = self.target(Actual_Amount__c=95000, Won_Opportunity_Count__c=3)
+        after = dict(before, Fiscal_Quarter__c='Q3')
+        after['Target_Key__c'] = ns['canonical'](after)
+        self.assertFalse(self.formula.evaluate(after, before))
+
+    def test_machine_actuals_insert_change_and_clear_allowed(self):
+        for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c'):
+            self.assertFalse(self.formula.evaluate(self.target(**{field: 1}), machine=True))
+            self.assertFalse(self.formula.evaluate(self.target(**{field: None}), self.target(**{field: 1}), machine=True))
+
+    def test_every_caller_rejects_blank_or_noncanonical_key(self):
+        for machine in (False, True):
+            for bad in (None, '', 'legacy-key', '005000000000001AAA-2026-Q3-ALL'):
+                for prior in (None, self.target()):
+                    with self.subTest(machine=machine, key=bad, new=prior is None):
+                        self.assertTrue(self.formula.evaluate(self.target(Target_Key__c=bad), prior, machine))
+
+    def test_flow_and_rule_use_same_canonical_dimensions(self):
+        expression = self.text(self.flow.find(self.prefix + 'formulas'), 'expression')
+        expression = re.sub(r'\{!\$Record\.([A-Za-z0-9_]+)\}', r'\1', expression)
+        canonical_formula = FormulaModel(expression)
+        for rep in ('005000000000001AAA', '005000000000002AAA'):
+            for quarter in ('Q1', 'Q2', 'Q3', 'Q4'):
+                for line in (None, '', 'Water_Purifier', 'Dehumidifier'):
+                    target = self.target(Sales_Rep__c=rep, Fiscal_Quarter__c=quarter, Product_Line__c=line)
+                    target['Target_Key__c'] = canonical_formula.evaluate(target)
+                    self.assertEqual(ns['canonical'](target), target['Target_Key__c'])
+                    self.assertFalse(self.formula.evaluate(target))
+        target = self.target(Sales_Rep__c='005000000000001')
+        self.assertEqual('005000000000001AAA-2026-Q4-ALL', canonical_formula.evaluate(target))
+
+    def test_actuals_error_message_and_location_preserved(self):
+        self.assertEqual('true', self.text(self.rule, 'active'))
+        self.assertEqual(ns['PROTECTION_MESSAGE'], self.text(self.rule, 'errorMessage'))
+        self.assertIsNone(self.text(self.rule, 'errorDisplayField'))
+
+    def test_flow_always_runs_before_create_and_update_at_api67(self):
+        self.assertEqual('67.0', self.text(self.flow, 'apiVersion'))
+        self.assertEqual('AutoLaunchedFlow', self.text(self.flow, 'processType'))
+        self.assertEqual('Active', self.text(self.flow, 'status'))
+        start = self.flow.find(self.prefix + 'start')
+        self.assertEqual('Sales_Target__c', self.text(start, 'object'))
+        self.assertEqual('CreateAndUpdate', self.text(start, 'recordTriggerType'))
+        self.assertEqual('RecordBeforeSave', self.text(start, 'triggerType'))
+        self.assertIsNone(self.text(start, 'filterFormula'))
+        self.assertEqual([], start.findall(self.prefix + 'filters'))
+        # Record-triggered before-save flows run in system context; no user-context override.
+        self.assertIsNone(self.text(self.flow, 'runInMode'))
+
+    def test_flow_graph_assigns_key_before_lookup_and_errors_only_on_match(self):
+        self.assertEqual('Set_Canonical_Key', self.text(self.flow, 'start/connector/targetReference'))
+        assignments = self.flow.findall(self.prefix + 'assignments')
+        self.assertEqual(1, len(assignments))
+        assign = assignments[0]
+        self.assertEqual('Set_Canonical_Key', self.text(assign, 'name'))
+        self.assertEqual('$Record.Target_Key__c', self.text(assign, 'assignmentItems/assignToReference'))
+        self.assertEqual('Assign', self.text(assign, 'assignmentItems/operator'))
+        self.assertEqual('Canonical_Key', self.text(assign, 'assignmentItems/value/elementReference'))
+        self.assertEqual('Find_Other_Target', self.text(assign, 'connector/targetReference'))
+        lookup = self.flow.find(self.prefix + 'recordLookups')
+        self.assertEqual('Check_Duplicate', self.text(lookup, 'connector/targetReference'))
+        decision = self.flow.find(self.prefix + 'decisions')
+        self.assertEqual('Find_Other_Target.Id', self.text(decision, 'rules/conditions/leftValueReference'))
+        self.assertEqual('IsNull', self.text(decision, 'rules/conditions/operator'))
+        self.assertEqual('false', self.text(decision, 'rules/conditions/rightValue/booleanValue'))
+        self.assertEqual('Duplicate_Target_Error', self.text(decision, 'rules/connector/targetReference'))
+        self.assertIsNone(decision.find(self.prefix + 'defaultConnector'))
+        error = self.flow.find(self.prefix + 'customErrors')
+        self.assertEqual('Duplicate_Target_Error', self.text(error, 'name'))
+        self.assertEqual('This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.', self.text(error, 'customErrorMessages/errorMessage'))
+        self.assertEqual('false', self.text(error, 'customErrorMessages/isFieldError'))
+
+    def test_lookup_excludes_self_without_owner_filter(self):
+        lookups = self.flow.findall(self.prefix + 'recordLookups')
+        self.assertEqual(1, len(lookups))
+        lookup = lookups[0]
+        self.assertEqual('Sales_Target__c', self.text(lookup, 'object'))
+        self.assertEqual('true', self.text(lookup, 'getFirstRecordOnly'))
+        self.assertEqual('true', self.text(lookup, 'assignNullValuesIfNoRecordsFound'))
+        self.assertEqual('and', self.text(lookup, 'filterLogic'))
+        filters = [(self.text(f, 'field'), self.text(f, 'operator'), self.text(f, 'value/elementReference')) for f in lookup.findall(self.prefix + 'filters')]
+        self.assertEqual([('Target_Key__c', 'EqualTo', '$Record.Target_Key__c'), ('Id', 'NotEqualTo', '$Record.Id')], filters)
+
+    def test_flow_has_no_loop_or_dml_or_external_action(self):
+        for tag in ('loops', 'recordCreates', 'recordUpdates', 'recordDeletes', 'subflows', 'actionCalls', 'screens'):
+            self.assertEqual([], self.flow.findall(self.prefix + tag), tag)
+
+    def test_atomic_unique_field_is_preserved(self):
+        field = ET.parse(ROOT / 'force-app/main/default/objects/Sales_Target__c/fields/Target_Key__c.field-meta.xml').getroot()
+        for name, expected in (('type', 'Text'), ('length', '80'), ('unique', 'true'), ('caseSensitive', 'false'), ('externalId', 'true')):
+            self.assertEqual(expected, self.text(field, name))
+
+    def test_staged_boundary_contains_only_approved_stage_members(self):
+        manifest = json.loads((SOURCE.parent / 'orchard-run.json').read_text())
+        boundary = manifest['actions'][0]['metadataBoundary']
+        self.assertEqual([
+            'force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml',
+            'force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml'
+        ], boundary['after'])
+        self.assertEqual([self.rule_path, self.flow_path], boundary['before'])
+        # Actual changedFiles membership is verified by Orchard's immutable plan,
+        # not inferred from file existence or synthesized remote Git state.
+
+    def test_regressions_are_in_standard_package_test_command(self):
+        scripts = json.loads((ROOT / 'package.json').read_text())['scripts']
+        self.assertEqual('npm run test:migration && npm run test:unit', scripts['test'])
+        self.assertEqual('python3 -B tools/test_sales_target_migration.py', scripts['test:migration'])
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

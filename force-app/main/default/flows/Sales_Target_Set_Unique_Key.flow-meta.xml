@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <assignments>
+        <name>Set_Canonical_Key</name>
+        <label>Set canonical target key</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Target_Key__c</assignToReference>
+            <operator>Assign</operator>
+            <value><elementReference>Canonical_Key</elementReference></value>
+        </assignmentItems>
+        <connector><targetReference>Find_Other_Target</targetReference></connector>
+    </assignments>
+    <customErrors>
+        <name>Duplicate_Target_Error</name>
+        <label>Duplicate target</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <customErrorMessages>
+            <errorMessage>This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
+    <decisions>
+        <name>Check_Duplicate</name>
+        <label>Check for another target</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <defaultConnectorLabel>No other target</defaultConnectorLabel>
+        <rules>
+            <name>Other_Target_Found</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>Find_Other_Target.Id</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>false</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>Duplicate_Target_Error</targetReference></connector>
+            <label>Another target has this key</label>
+        </rules>
+    </decisions>
+    <description>Before-save canonical key and cross-owner duplicate check. Deploy only after the staged migration key audit. The unique field remains the atomic safeguard for concurrent and same-import collisions.</description>
+    <environments>Default</environments>
+    <formulas>
+        <name>Canonical_Key</name>
+        <dataType>String</dataType>
+        <expression>CASESAFEID({!$Record.Sales_Rep__c})&amp;"-"&amp;TEXT({!$Record.Fiscal_Year__c})&amp;"-"&amp;TEXT({!$Record.Fiscal_Quarter__c})&amp;"-"&amp;BLANKVALUE(TEXT({!$Record.Product_Line__c}),"ALL")</expression>
+    </formulas>
+    <interviewLabel>Set Sales Target Unique Key {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Set Sales Target Unique Key</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value><stringValue>LightningFlowBuilder</stringValue></value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value><stringValue>AUTO_LAYOUT_CANVAS</stringValue></value>
+    </processMetadataValues>
+    <processType>AutoLaunchedFlow</processType>
+    <recordLookups>
+        <name>Find_Other_Target</name>
+        <label>Find another target with the canonical key</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignNullValuesIfNoRecordsFound>true</assignNullValuesIfNoRecordsFound>
+        <connector><targetReference>Check_Duplicate</targetReference></connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Target_Key__c</field>
+            <operator>EqualTo</operator>
+            <value><elementReference>$Record.Target_Key__c</elementReference></value>
+        </filters>
+        <filters>
+            <field>Id</field>
+            <operator>NotEqualTo</operator>
+            <value><elementReference>$Record.Id</elementReference></value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Sales_Target__c</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector><targetReference>Set_Canonical_Key</targetReference></connector>
+        <object>Sales_Target__c</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+    <status>Active</status>
+</Flow>
