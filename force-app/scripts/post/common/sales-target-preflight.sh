@@ -3,9 +3,10 @@
 # canonical Target_Key__c backfill. NEVER deploys metadata or disables protections.
 # Post-baseline migration only: stage 1 metadata must already be installed.
 # Never register as a pre-deployment review prerequisite. Stage 2 requires its receipt.
-# Not registered for execution. Formal target-bound releaseInputs and machine
-# execution binding must be published and verified before this adapter is enabled.
-# Legacy environment variables are NOT an authorization or execution contract.
+# Uses only the declared Orchard releaseInputs contract (platform 1.2.1345,
+# 6a541555b86616f6de4cffb9b3144fb100ada9de). The runner verifies the exact
+# source SHA/target fingerprint and separately authenticates the machine before
+# supplying its 0600 authorization file and authenticated username. No login here.
 # Keep writers quiesced through stage-2 activation; no automatic writer resume.
 set -euo pipefail
 : "${ORCHARD_TARGET_ORG:?Orchard must supply the authenticated target alias}"
@@ -16,6 +17,8 @@ python3 - "$1" <<'PY'
 import datetime as dt
 import hashlib
 import json
+import os
+import stat
 import re
 import subprocess
 import sys
@@ -45,7 +48,9 @@ def canonical(row):
     require(isinstance(year, (int, float)) and not isinstance(year, bool) and int(year) == year and 2025 <= year <= 2030, 'Invalid target year; owner correction required')
     quarter = row.get('Fiscal_Quarter__c')
     require(quarter in ('Q1', 'Q2', 'Q3', 'Q4'), 'Invalid target quarter')
-    line = row.get('Product_Line__c') or 'ALL'
+    value = row.get('Product_Line__c')
+    require(value is None or isinstance(value, str), 'Invalid product-line API value')
+    line = 'ALL' if value in (None, '') else value
     require(line == 'ALL' or re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*', line), 'Invalid product-line API value')
     key = f'{rep}-{int(year)}-{quarter}-{line}'
     require(len(key) <= 80, 'Canonical key exceeds existing Text80 field')
@@ -115,18 +120,78 @@ def one(rows, purpose):
     return rows[0]
 
 def parse_expiry(value):
-    require(isinstance(value, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)', value), 'Release expiry must be an explicit UTC ISO8601 timestamp')
+    require(isinstance(value, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z', value), 'Release expiry must be an explicit UTC ISO8601 timestamp')
     return dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
 
 def check_window():
     require(CONTEXT['expiresAt'] > dt.datetime.now(dt.timezone.utc), 'Release quiescence authorization expired')
 
 def formula_matches(actual, expected):
-    # The pinned formulas contain no string literals; ignore formatting only.
-    def compact(value):
-        require(isinstance(value, str), 'Missing protection formula')
-        return re.sub(r'\s+', '', value)
-    return compact(actual) == compact(expected)
+    # Compare tokens, not whitespace-stripped text: never merge identifiers or
+    # change whitespace/escapes inside literals. Unknown syntax fails closed.
+    def tokens(value):
+        require(isinstance(value, str) and value.strip(), 'Missing protection formula')
+        pattern = re.compile('\\s+|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[A-Za-z_$][A-Za-z0-9_$]*|[0-9]+(?:\\.[0-9]+)?|<>|!=|<=|>=|&&|\\|\\||[().,=<>+*/&!^%-]')
+        result, pos = [], 0
+        while pos < len(value):
+            match = pattern.match(value, pos)
+            require(match is not None, 'Unsupported protection formula syntax')
+            token = match.group()
+            if not token.isspace():
+                result.append(token)
+            pos = match.end()
+        return result
+    return tokens(actual) == tokens(expected)
+
+def unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, 'Duplicate authorization JSON key')
+        result[key] = value
+    return result
+
+def validate_authorization(raw, now):
+    # Exact source/target equality is enforced by prepareReleaseInputs in Orchard,
+    # NOT by comparing these values to themselves or inventing extra env inputs.
+    fields = {'orgId', 'machineUserId', 'operationsOwnerId', 'artifactSha',
+              'targetFingerprint', 'approvalReference', 'syntheticOnly',
+              'writesQuiesced', 'expiresAt'}
+    require(isinstance(raw, dict) and set(raw) == fields, 'Authorization must contain exactly the nine declared fields')
+    for field, prefix in (('orgId', '00D'), ('machineUserId', '005'), ('operationsOwnerId', '005')):
+        sfid(raw[field], prefix)
+    for field, length in (('artifactSha', 40), ('targetFingerprint', 64)):
+        require(isinstance(raw[field], str) and re.fullmatch('[0-9a-f]{' + str(length) + '}', raw[field]), 'Invalid authorization pin: ' + field)
+    require(raw['syntheticOnly'] is True and raw['writesQuiesced'] is True, 'Explicit synthetic-only and write-quiescence authorization required')
+    reference = raw['approvalReference']
+    require(isinstance(reference, str) and reference.strip() and len(reference) <= 500, 'Human approval reference is required')
+    expiry = parse_expiry(raw['expiresAt'])
+    require(expiry > now, 'Release quiescence authorization expired')
+    return dict(raw, expiresAt=expiry)
+
+def verify_authorized_org(context, observed):
+    require(isinstance(observed, dict) and observed.get('Id') == context['orgId'] and observed.get('IsSandbox') is True,
+            'Target is not the authorized nonproduction org')
+
+def verify_machine_actor(context, actor, owner, api_only):
+    require(isinstance(actor, dict) and actor.get('Id') == context['machineUserId'], 'Machine identity differs from authorization')
+    require(actor.get('IsActive') is True and actor.get('TimeZoneSidKey') == 'America/Los_Angeles', 'Machine must be active with America/Los_Angeles timezone')
+    require(isinstance(owner, dict) and owner.get('Id') == context['operationsOwnerId'] and owner.get('IsActive') is True, 'Authorized operations owner must be active')
+    require(api_only is True, 'Configured machine must have effective API-only access, never a human identity')
+
+def load_release_inputs():
+    path = os.environ.get('SALES_TARGET_RELEASE_CONTEXT')
+    machine = os.environ.get('SALES_TARGET_MACHINE_ORG')
+    require(isinstance(path, str) and os.path.isabs(path), 'Missing declared authorization file path')
+    require(isinstance(machine, str) and machine.strip() == machine and machine and not machine.startswith('-') and not any(c.isspace() for c in machine), 'Missing declared authenticated machine username')
+    # No secret token is read, logged or passed to a subprocess by this script.
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, 'r', encoding='utf-8') as stream:
+        info = os.fstat(stream.fileno())
+        require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600 and info.st_uid == os.geteuid(), 'Authorization file must be runner-owned regular mode 0600')
+        text = stream.read(16385)
+        require(len(text) <= 16384, 'Authorization file exceeds bounded size')
+        raw = json.loads(text, object_pairs_hook=unique_json_object)
+    return validate_authorization(raw, dt.datetime.now(dt.timezone.utc)), machine
 
 STAGE_ONE_PROTECTION = 'AND(NOT($Permission.Sales_Target_System_Write),OR(AND(ISNEW(),OR(NOT(ISBLANK(Actual_Amount__c)),NOT(ISBLANK(Won_Opportunity_Count__c)),NOT(ISBLANK(Last_Calculated_At__c)),NOT(ISBLANK(Target_Key__c)))),AND(NOT(ISNEW()),OR(ISCHANGED(Actual_Amount__c),ISCHANGED(Won_Opportunity_Count__c),ISCHANGED(Last_Calculated_At__c),ISCHANGED(Target_Key__c)))))'
 PROTECTION_MESSAGE = 'Actuals and target keys can only be changed by the system.'
@@ -192,7 +257,7 @@ def audit_currencies(rows, today):
             bad = system_query('SELECT Id FROM OpportunityLineItem WHERE (' + ' OR '.join(line_conditions) + ') AND (CurrencyIsoCode != ' + quote(CORPORATE) + ' OR Opportunity.CurrencyIsoCode != ' + quote(CORPORATE) + ') LIMIT 1')
             require(not bad, 'Foreign eligible opportunity/product-line currency; conversion is out of scope')
 
-def verify_sales_rep_metadata(metadata):
+def verify_sales_rep_metadata(metadata, user_describe):
     require(isinstance(metadata, dict), 'Missing Sales Rep metadata')
     expected = {'type': 'Lookup', 'referenceTo': 'User', 'label': 'Sales Rep',
                 'relationshipName': 'Sales_Quarterly_Targets',
@@ -201,10 +266,11 @@ def verify_sales_rep_metadata(metadata):
         require(name in metadata and type(metadata[name]) is type(value) and metadata[name] == value,
                 'Sales Rep preservation contract differs or is unverified: ' + name)
     require(not metadata.get('lookupFilter'), 'Stage-1 main metadata is not installed: active-only filter must be removed before backfill')
-    # An omitted attribute is NOT evidence of Restrict. Preserve the existing field;
-    # resolve this prerequisite evidence gap, never add a constraint speculatively.
-    require(metadata.get('deleteConstraint') == 'Restrict',
-            'Sales Rep deletion restriction is unverified or incompatible; prerequisite evidence required before migration')
+    # Reconciled API67 User lookup: SetNull is serialized, but User cannot be
+    # deleted. Never claim omitted deletion metadata proves Restrict.
+    require(metadata.get('deleteConstraint') == 'SetNull', 'Sales Rep deletion constraint differs or is unverified')
+    require(isinstance(user_describe, dict) and user_describe.get('name') == 'User' and user_describe.get('deletable') is False,
+            'User non-deletability must be explicit')
 
 def metadata_gates():
     entity = one(query("SELECT DurableId FROM EntityDefinition WHERE QualifiedApiName = 'Sales_Target__c'", True), 'target object')['DurableId']
@@ -221,14 +287,13 @@ def metadata_gates():
             require(detail.get('errorDisplayField') == 'Sales_Rep__c' and detail.get('errorMessage') == 'Sales Rep is required.', 'Sales Rep required message/location differs')
         if name == 'Active_Sales_Rep_On_Assignment':
             detail = one(query('SELECT Metadata FROM ValidationRule WHERE Id = ' + quote(rule['Id']), True), 'assignment rule metadata')['Metadata']
-            normalized = re.sub(r'\s+', '', detail.get('errorConditionFormula', '')).casefold()
-            require(normalized == 'and(or(isnew(),ischanged(sales_rep__c)),not(sales_rep__r.isactive))', 'Assignment rule differs from approved formula')
+            require(formula_matches(detail.get('errorConditionFormula'), 'AND(OR(ISNEW(),ISCHANGED(Sales_Rep__c)),NOT(Sales_Rep__r.IsActive))'), 'Assignment rule differs from approved formula')
             require(detail.get('errorDisplayField') == 'Sales_Rep__c' and detail.get('errorMessage') == 'Choose an active Sales Rep.', 'Assignment rule message/location differs')
     for name in ('Sales_Rep', 'Target_Key'):
         field = one(query('SELECT Id FROM CustomField WHERE TableEnumOrId = ' + quote(entity) + ' AND DeveloperName = ' + quote(name), True), name)
         metadata = one(query('SELECT Metadata FROM CustomField WHERE Id = ' + quote(field['Id']), True), name + ' metadata')['Metadata']
         if name == 'Sales_Rep':
-            verify_sales_rep_metadata(metadata)
+            verify_sales_rep_metadata(metadata, cli(['sobject', 'describe', '--sobject', 'User']))
         else:
             require(metadata.get('type') == 'Text' and metadata.get('length') == 80 and metadata.get('unique') is True and metadata.get('caseSensitive') is False and metadata.get('externalId') is True, 'Unique key contract mismatch')
 
@@ -264,17 +329,15 @@ System.debug(LoggingLevel.ERROR, 'ST_PREFLIGHT:' + JSON.serialize(saved));
     emit('chunk_verified', count=len(chunk), idsHash=hashlib.sha256(json.dumps(sorted(expected_keys)).encode()).hexdigest())
 
 try:
-    # Deliberate fail-closed barrier, not a configurable override. Replace only after
-    # the published platform binding is verified; legacy inputs cannot unlock it.
-    raise GateError('Formal target-bound releaseInputs and machine execution binding are not verified; migration is disabled')
-    org = one(query('SELECT Id,IsSandbox FROM Organization'), 'organization')
-    require(org['Id'] == ORG and org['IsSandbox'] is True, 'Target is not the authorized nonproduction org')
+    CONTEXT, MACHINE = load_release_inputs()
+    ORG, USER, owner = CONTEXT['orgId'], CONTEXT['machineUserId'], CONTEXT['operationsOwnerId']
+    verify_authorized_org(CONTEXT, one(query('SELECT Id,IsSandbox FROM Organization'), 'deployment organization'))
+    verify_authorized_org(CONTEXT, one(query('SELECT Id,IsSandbox FROM Organization', org=MACHINE), 'machine organization'))
     metadata_gates()
     actor = one(query('SELECT Id,IsActive,TimeZoneSidKey,Profile.PermissionsApiOnlyUser FROM User WHERE Id = ' + quote(USER)), 'machine user')
-    require(actor['IsActive'] is True and actor['TimeZoneSidKey'] == 'America/Los_Angeles', 'Machine must be active with America/Los_Angeles timezone')
-    require(one(query('SELECT Id,IsActive FROM User WHERE Id = ' + quote(owner)), 'operations owner')['IsActive'] is True, 'Operations owner must be active')
+    operations_owner = one(query('SELECT Id,IsActive FROM User WHERE Id = ' + quote(owner)), 'operations owner')
     api_only = actor['Profile']['PermissionsApiOnlyUser'] is True or bool(query('SELECT Id FROM PermissionSetAssignment WHERE AssigneeId = ' + quote(USER) + ' AND PermissionSet.PermissionsApiOnlyUser = true LIMIT 1'))
-    require(api_only, 'Configured machine must have effective API-only access, never a human identity')
+    verify_machine_actor(CONTEXT, actor, operations_owner, api_only)
     # Proves the authenticated identity and supported anonymous execution BEFORE granting anything.
     apex("System.debug(LoggingLevel.ERROR, 'ST_PREFLIGHT:true');", permission=False)
     permission = one(query("SELECT Id FROM PermissionSet WHERE Name = 'Sales_Target_System_Write_Access' AND NamespacePrefix = null"), 'existing machine permission set')['Id']
@@ -293,7 +356,7 @@ try:
     before = target_rows()
     changes = audit_keys(before)
     audit_currencies(before, today)
-    emit('audit_passed', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targets=len(before), keysToBackfill=len(changes), approvalReference=CONTEXT['approvalReference'])
+    emit('audit_passed', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, expiresAt=CONTEXT['expiresAt'].isoformat(), targets=len(before), keysToBackfill=len(changes), approvalReference=CONTEXT['approvalReference'])
     for offset in range(0, len(changes), 100):
         chunk = changes[offset:offset+100]
         try:
@@ -309,7 +372,7 @@ try:
     require(not audit_keys(after), 'Final audit has blank or mismatched keys')
     audit_currencies(after, today)
     check_window()
-    emit('backfill_verified', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, keyDigest=hashlib.sha256(json.dumps(sorted((r['Id'],r['Target_Key__c']) for r in after)).encode()).hexdigest())
+    emit('backfill_verified', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, expiresAt=CONTEXT['expiresAt'].isoformat(), targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, keyDigest=hashlib.sha256(json.dumps(sorted((r['Id'],r['Target_Key__c']) for r in after)).encode()).hexdigest())
 except (GateError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, OSError) as exc:
     emit('blocked', reason=str(exc) if isinstance(exc, GateError) else type(exc).__name__, writesRemainQuiesced=True, retry='Do not replay uncertain writes. Inspect current assignment/keys and obtain a fresh release window; rerun performs a new full audit.')
     sys.exit(1)

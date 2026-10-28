@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "sales-target-preflight",
+      "type": "bash",
+      "file": "sales-target-preflight.sh",
+      "timeoutMinutes": 10,
+      "scopeMode": "selected_delivery",
+      "deploymentEffect": "data",
+      "metadataBoundary": {
+        "after": [
+          "force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/validationRules/Sales_Rep_Required.validationRule-meta.xml"
+        ],
+        "before": [
+          "force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml"
+        ]
+      },
+      "releaseInputs": {
+        "authorizationToken": "SALES_TARGET_AUTHORIZATION",
+        "machineAuthToken": "SALES_TARGET_MACHINE_AUTH",
+        "contextFileEnv": "SALES_TARGET_RELEASE_CONTEXT",
+        "machineOrgEnv": "SALES_TARGET_MACHINE_ORG"
+      }
+    }
+  ]
+}
