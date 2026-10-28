@@ -1,0 +1,118 @@
+<template>
+  <lightning-card title={title}>
+    <div class="slds-p-around_medium">
+      <template lwc:if={showSpinner}
+        ><lightning-spinner
+          alternative-text="Loading or saving Product"
+          size="small"
+        ></lightning-spinner
+      ></template>
+      <template lwc:if={error}
+        ><div role="alert" class="slds-text-color_error slds-m-bottom_small">
+          {error}
+        </div></template
+      >
+      <template lwc:if={denied}
+        ><p role="alert">
+          Product write access is not available for this route.
+        </p></template
+      >
+      <template lwc:if={chooseRecordType}
+        ><lightning-combobox
+          label="Record Type"
+          value={recordTypeId}
+          options={recordTypeOptions}
+          onchange={changeRecordType}
+          disabled={disabled}
+        ></lightning-combobox
+      ></template>
+      <template lwc:if={ready}>
+        <lightning-record-edit-form
+          object-api-name="Product2"
+          record-id={recordId}
+          record-type-id={recordTypeId}
+          onsubmit={interceptSubmit}
+        >
+          <template for:each={sections} for:item="section">
+            <section key={section.key} class="slds-m-bottom_medium">
+              <h2 class="slds-text-heading_small slds-m-bottom_small">
+                {section.heading}
+              </h2>
+              <template for:each={section.rows} for:item="row">
+                <div
+                  key={row.key}
+                  class="slds-grid slds-wrap slds-gutters_small"
+                >
+                  <template for:each={row.fields} for:item="field">
+                    <div
+                      key={field.name}
+                      class="slds-col slds-size_1-of-1 slds-medium-size_1-of-2 slds-m-bottom_small"
+                    >
+                      <template lwc:if={field.readOnly}
+                        ><div class="slds-form-element">
+                          <span class="slds-form-element__label"
+                            >{field.label}</span
+                          >
+                          <div class="slds-form-element__control">
+                            <lightning-formatted-text
+                              value={field.value}
+                            ></lightning-formatted-text>
+                          </div></div
+                      ></template>
+                      <template lwc:elseif={field.isDate}>
+                        <lightning-input
+                          type="datetime"
+                          data-date={field.name}
+                          aria-describedby={field.name}
+                          label={field.label}
+                          value={field.value}
+                          timezone={timezone}
+                          required={field.required}
+                          disabled={disabled}
+                          onchange={handleChange}
+                        ></lightning-input>
+                      </template>
+                      <template lwc:else>
+                        <lightning-input-field
+                          field-name={field.name}
+                          aria-describedby={field.name}
+                          value={field.initialValue}
+                          required={field.required}
+                          disabled={disabled}
+                          onchange={handleChange}
+                        ></lightning-input-field>
+                      </template>
+                      <template lwc:if={field.error}
+                        ><div
+                          id={field.name}
+                          role="alert"
+                          class="slds-form-element__help"
+                        >
+                          {field.label}: {field.error}
+                        </div></template
+                      >
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </section>
+          </template>
+        </lightning-record-edit-form>
+        <lightning-button
+          data-action="save"
+          label="Save"
+          variant="brand"
+          onclick={save}
+          disabled={disabled}
+        ></lightning-button>
+      </template>
+      <lightning-button
+        class="slds-m-left_small"
+        data-action="cancel"
+        label="Cancel"
+        onclick={cancel}
+        disabled={busy}
+      ></lightning-button>
+    </div>
+  </lightning-card>
+</template>
