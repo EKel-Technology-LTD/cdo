@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Orchard action runner only. Data effects: scoped machine permission assignment and
 # canonical Target_Key__c backfill. NEVER deploys metadata or disables protections.
-# Stage 1 main metadata must already be installed before this merged base-branch
-# review prerequisite runs. Stage 2 must wait for the verified receipt below.
+# Post-baseline migration only: stage 1 metadata must already be installed.
+# Never register as a pre-deployment review prerequisite. Stage 2 requires its receipt.
+# Not registered for execution until the published Orchard target-bound release
+# input and machine execution contract replaces the legacy input adapter below.
 # Runner configuration (not credentials): SALES_TARGET_MACHINE_ORG is an already
 # authenticated machine alias; SALES_TARGET_RELEASE_CONTEXT is an absolute JSON
 # file supplied by the authorized release operator with orgId, machineUserId,
@@ -118,8 +120,22 @@ def one(rows, purpose):
     require(len(rows) == 1, 'Expected exactly one ' + purpose)
     return rows[0]
 
+def parse_expiry(value):
+    require(isinstance(value, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)', value), 'Release expiry must be an explicit UTC ISO8601 timestamp')
+    return dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+
 def check_window():
     require(CONTEXT['expiresAt'] > dt.datetime.now(dt.timezone.utc), 'Release quiescence authorization expired')
+
+def formula_matches(actual, expected):
+    # The pinned formulas contain no string literals; ignore formatting only.
+    def compact(value):
+        require(isinstance(value, str), 'Missing protection formula')
+        return re.sub(r'\s+', '', value)
+    return compact(actual) == compact(expected)
+
+STAGE_ONE_PROTECTION = 'AND(NOT($Permission.Sales_Target_System_Write),OR(AND(ISNEW(),OR(NOT(ISBLANK(Actual_Amount__c)),NOT(ISBLANK(Won_Opportunity_Count__c)),NOT(ISBLANK(Last_Calculated_At__c)),NOT(ISBLANK(Target_Key__c)))),AND(NOT(ISNEW()),OR(ISCHANGED(Actual_Amount__c),ISCHANGED(Won_Opportunity_Count__c),ISCHANGED(Last_Calculated_At__c),ISCHANGED(Target_Key__c)))))'
+PROTECTION_MESSAGE = 'Actuals and target keys can only be changed by the system.'
 
 def apex(body, permission=True):
     check_window()
@@ -128,6 +144,8 @@ def apex(body, permission=True):
     prefix += "System.assert([SELECT IsSandbox FROM Organization WITH SYSTEM_MODE LIMIT 1].IsSandbox, 'Nonproduction only');\n"
     if permission:
         prefix += "System.assert(FeatureManagement.checkPermission('Sales_Target_System_Write'), 'Missing machine permission');\n"
+    expiry_ms = int(CONTEXT['expiresAt'].timestamp() * 1000)
+    prefix += 'System.assert(Datetime.now().getTime() < ' + str(expiry_ms) + 'L, \'Release authorization expired\');\n'
     result = cli(['apex', 'run', '--file', '/dev/stdin'], MACHINE, prefix + body)
     require(result.get('compiled') is True and result.get('success') is True, 'Anonymous Apex compile/execution failed; no success inferred')
     messages = re.findall(r'\|USER_DEBUG\|\[\d+\]\|ERROR\|ST_PREFLIGHT:(.*)', result.get('logs', ''))
@@ -185,6 +203,14 @@ def metadata_gates():
     for name in ('System_Fields_Protected', 'Sales_Rep_Required', 'Active_Sales_Rep_On_Assignment'):
         rule = one(query('SELECT Id,Active FROM ValidationRule WHERE EntityDefinitionId = ' + quote(entity) + ' AND ValidationName = ' + quote(name), True), name)
         require(rule['Active'] is True, 'Required protection is inactive: ' + name)
+        if name == 'System_Fields_Protected':
+            detail = one(query('SELECT Metadata FROM ValidationRule WHERE Id = ' + quote(rule['Id']), True), 'protection rule metadata')['Metadata']
+            require(formula_matches(detail.get('errorConditionFormula'), STAGE_ONE_PROTECTION), 'Stage-1 System_Fields_Protected formula differs from the pinned protection contract')
+            require(detail.get('errorMessage') == PROTECTION_MESSAGE and not detail.get('errorDisplayField'), 'Protection rule message/location differs')
+        if name == 'Sales_Rep_Required':
+            detail = one(query('SELECT Metadata FROM ValidationRule WHERE Id = ' + quote(rule['Id']), True), 'required salesperson rule metadata')['Metadata']
+            require(formula_matches(detail.get('errorConditionFormula'), 'ISBLANK(Sales_Rep__c)'), 'Sales Rep required rule differs')
+            require(detail.get('errorDisplayField') == 'Sales_Rep__c' and detail.get('errorMessage') == 'Sales Rep is required.', 'Sales Rep required message/location differs')
         if name == 'Active_Sales_Rep_On_Assignment':
             detail = one(query('SELECT Metadata FROM ValidationRule WHERE Id = ' + quote(rule['Id']), True), 'assignment rule metadata')['Metadata']
             normalized = re.sub(r'\s+', '', detail.get('errorConditionFormula', '')).casefold()
@@ -220,10 +246,11 @@ for (Sales_Target__c row : locked) {
     String key = String.valueOf(row.Sales_Rep__c) + '-' + String.valueOf(row.Fiscal_Year__c.intValue()) + '-' + row.Fiscal_Quarter__c + '-' + (String.isBlank(row.Product_Line__c) ? 'ALL' : row.Product_Line__c);
     updates.add(new Sales_Target__c(Id=row.Id, Target_Key__c=key));
 }
+System.assert(Datetime.now().getTime() < EXPIRY_MS, 'Release authorization expired before backfill DML');
 Database.update(updates, true, AccessLevel.SYSTEM_MODE);
 List<Sales_Target__c> saved = [SELECT Id,Target_Key__c FROM Sales_Target__c WHERE Id IN :ids WITH SYSTEM_MODE];
 System.debug(LoggingLevel.ERROR, 'ST_PREFLIGHT:' + JSON.serialize(saved));
-'''.replace('PAYLOAD', quote(json.dumps(expected, separators=(',', ':'))))
+'''.replace('PAYLOAD', quote(json.dumps(expected, separators=(',', ':')))).replace('EXPIRY_MS', str(int(CONTEXT['expiresAt'].timestamp() * 1000)) + 'L')
     result = apex(body)
     expected_keys = {r['Id']: canonical(r) for r in chunk}
     require(len(result) == len(chunk) and {r['Id']:r.get('Target_Key__c') for r in result} == expected_keys, 'Chunk readback did not match canonical keys')
@@ -239,8 +266,7 @@ try:
     require(CONTEXT.get('syntheticOnly') is True and CONTEXT.get('writesQuiesced') is True, 'Only synthetic data in an authorized quiesced release window is allowed')
     require(isinstance(CONTEXT.get('approvalReference'), str) and CONTEXT['approvalReference'].strip(), 'Missing release authorization reference')
     require(isinstance(CONTEXT.get('artifactSha'), str) and re.fullmatch(r'[0-9a-f]{40}', CONTEXT['artifactSha']), 'Missing pinned artifact revision')
-    CONTEXT['expiresAt'] = dt.datetime.fromisoformat(CONTEXT['expiresAt'].replace('Z', '+00:00'))
-    require(CONTEXT['expiresAt'].tzinfo is not None, 'Release expiry must include timezone')
+    CONTEXT['expiresAt'] = parse_expiry(CONTEXT.get('expiresAt'))
     check_window()
     MACHINE = os.environ.get('SALES_TARGET_MACHINE_ORG')
     require(MACHINE, 'Runner must supply an already authenticated machine alias; no impersonation or credential acquisition')
