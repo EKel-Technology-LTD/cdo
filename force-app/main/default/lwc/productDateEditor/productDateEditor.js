@@ -182,7 +182,16 @@ export default class ProductDateEditor extends NavigationMixin(
                 readOnly: !editable,
                 isDate: DATE_FIELDS.includes(c.apiName),
                 value: this.value(c.apiName),
-                required: item.required || metadata?.required,
+                // Non-null Boolean metadata does not mean the checkbox must be true.
+                required:
+                  metadata?.dataType === "Boolean"
+                    ? false
+                    : !!(item.required || metadata?.required),
+                // Native fields own their edited state. Never echo change-event payloads
+                // (which can be arrays) back into their value property on rerender.
+                initialValue: (this.record || this.defaults)?.fields?.[
+                  c.apiName
+                ]?.value,
                 error: this.fieldErrors[c.apiName]
               };
             })
@@ -201,10 +210,24 @@ export default class ProductDateEditor extends NavigationMixin(
       return;
     this.changes = {
       ...this.changes,
-      [name]: event.detail?.value ?? event.target.value ?? null
+      [name]: DATE_FIELDS.includes(name)
+        ? (event.detail?.value ?? event.target.value ?? null)
+        : this.info?.fields?.[name]?.dataType === "Boolean"
+          ? (event.detail?.checked ?? event.target.value)
+          : event.target.value
     };
     this.fieldErrors = { ...this.fieldErrors, [name]: "" };
     if (DATE_FIELDS.includes(name)) this.validateDates(false);
+  }
+  nativeValue(name, value) {
+    // Native scalar picklists/lookups may expose an array; multi-picklists use
+    // the API's semicolon representation. Do not coerce false, zero or blanks.
+    if (Array.isArray(value)) {
+      return this.info?.fields?.[name]?.dataType === "MultiPicklist"
+        ? value.join(";")
+        : (value[0] ?? null);
+    }
+    return value;
   }
   validateDates(focus) {
     const start = this.value("AvailabilityDate");
@@ -229,7 +252,14 @@ export default class ProductDateEditor extends NavigationMixin(
       ...this.template.querySelectorAll(
         "lightning-input, lightning-input-field"
       )
-    ].reduce((valid, input) => input.reportValidity() !== false && valid, true);
+    ].reduce((valid, input) => {
+      // Salesforce dynamic input-field required validation can reject unchecked
+      // Booleans even with required=false. A native checkbox has no invalid
+      // text state; server business validation still runs on the LDS write.
+      if (this.info?.fields?.[input.fieldName]?.dataType === "Boolean")
+        return valid;
+      return input.reportValidity() !== false && valid;
+    }, true);
     if (!datesValid || !controlsValid) return;
     const fields = {};
     for (const section of this.sections)
@@ -262,7 +292,8 @@ export default class ProductDateEditor extends NavigationMixin(
           (input.value !== undefined && input.value !== null) ||
           Object.prototype.hasOwnProperty.call(this.changes, input.fieldName)
         )
-          fields[input.fieldName] = input.value ?? null;
+          fields[input.fieldName] =
+            this.nativeValue(input.fieldName, input.value) ?? null;
       }
     }
     this.busy = true;

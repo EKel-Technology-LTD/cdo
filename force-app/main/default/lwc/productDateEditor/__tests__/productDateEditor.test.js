@@ -280,3 +280,237 @@ it("retains stale edit inputs without retry", async () => {
     el.shadowRoot.querySelector('[data-date="DiscontinuedDate"]').value
   ).toBe("2026-11-10T08:00:00Z");
 });
+
+// Aside regression 9397f83a: these native controls were absent from the original fixture.
+const booleanNames = [
+  "IsActive",
+  "Dealer_Exclusive__c",
+  "Requires_Installation__c"
+];
+async function mountNative(edit = false) {
+  const el = await mount(edit);
+  const extra = {
+    ProductCode: { dataType: "String" },
+    CurrencyIsoCode: { dataType: "Picklist", required: true },
+    ...Object.fromEntries(
+      booleanNames.map((name) => [
+        name,
+        { dataType: "Boolean", required: true }
+      ])
+    )
+  };
+  getObjectInfo.emit({
+    ...info,
+    fields: {
+      ...info.fields,
+      ...Object.fromEntries(
+        Object.entries(extra).map(([name, props]) => [
+          name,
+          {
+            apiName: name,
+            label: name,
+            createable: true,
+            updateable: true,
+            ...props
+          }
+        ])
+      )
+    }
+  });
+  if (!edit)
+    getRecordCreateDefaults.emit({
+      record: {
+        fields: {
+          Name: { value: null },
+          CurrencyIsoCode: { value: "USD" },
+          ...Object.fromEntries(
+            booleanNames.map((name) => [name, { value: false }])
+          )
+        }
+      }
+    });
+  getLayout.emit({
+    sections: [
+      {
+        ...layout.sections[0],
+        layoutRows: [
+          ...layout.sections[0].layoutRows,
+          ...Object.keys(extra).map((name) => ({
+            layoutItems: [
+              {
+                required: name === "CurrencyIsoCode",
+                editableForNew: true,
+                editableForUpdate: true,
+                layoutComponents: [{ componentType: "Field", apiName: name }]
+              }
+            ]
+          }))
+        ]
+      }
+    ]
+  });
+  await flush();
+  for (const input of el.shadowRoot.querySelectorAll(
+    "lightning-input,lightning-input-field"
+  )) {
+    // Mimic the documented base-component Boolean validation bug independently
+    // of the explicit required property: false must not block the entire form.
+    input.reportValidity = jest.fn(
+      () => !booleanNames.includes(input.fieldName)
+    );
+    input.setCustomValidity = jest.fn();
+    input.focus = jest.fn();
+  }
+  return el;
+}
+function native(el, name) {
+  return [...el.shadowRoot.querySelectorAll("lightning-input-field")].find(
+    (f) => f.fieldName === name
+  );
+}
+it.each(["2026-11-10T06:00:00Z", "2026-11-10T07:00:00Z"])(
+  "creates valid inactive Product at %s without forcing Boolean true",
+  async (end) => {
+    createRecord.mockResolvedValue({ id: "01t000000000001AAA" });
+    const el = await mountNative();
+    for (const name of booleanNames)
+      expect(native(el, name).required).toBe(false);
+    native(el, "Name").value = "QA sale datetimes";
+    date(el, "AvailabilityDate", "2026-11-10T06:00:00Z");
+    date(el, "DiscontinuedDate", end);
+    await flush();
+    save(el);
+    await flush();
+    expect(createRecord).toHaveBeenCalledTimes(1);
+    expect(createRecord.mock.calls[0][0].fields).toEqual(
+      expect.objectContaining({
+        Name: "QA sale datetimes",
+        CurrencyIsoCode: "USD",
+        IsActive: false,
+        Dealer_Exclusive__c: false,
+        Requires_Installation__c: false,
+        DiscontinuedDate: end
+      })
+    );
+    for (const name of booleanNames)
+      expect(native(el, name).reportValidity).not.toHaveBeenCalled();
+  }
+);
+it("keeps native currency, Name and Code values across change and date-error rerenders", async () => {
+  const el = await mountNative();
+  async function changeNative(name, value, detail) {
+    const input = native(el, name);
+    input.value = value;
+    input.dispatchEvent(new CustomEvent("change", { detail }));
+    await flush();
+    expect(input.value).toBe(value);
+  }
+  await changeNative("CurrencyIsoCode", "USD", { value: ["USD"] });
+  await changeNative("Name", "QA retained name", {
+    value: ["not a text value"]
+  });
+  await changeNative("ProductCode", "QA-code", {});
+  date(el, "AvailabilityDate", "2026-11-10T06:00:00Z");
+  date(el, "DiscontinuedDate", "2026-11-10T05:00:00Z");
+  save(el);
+  await flush();
+  expect(createRecord).not.toHaveBeenCalled();
+  expect(native(el, "CurrencyIsoCode").value).toBe("USD");
+  expect(native(el, "Name").value).toBe("QA retained name");
+  expect(native(el, "ProductCode").value).toBe("QA-code");
+});
+it("preserves required text and currency validation rather than bypassing all native fields", async () => {
+  const el = await mountNative();
+  expect(native(el, "Name").required).toBe(true);
+  expect(native(el, "CurrencyIsoCode").required).toBe(true);
+  native(el, "Name").reportValidity = jest.fn(() => false);
+  save(el);
+  await flush();
+  expect(native(el, "Name").reportValidity).toHaveBeenCalled();
+  expect(native(el, "CurrencyIsoCode").reportValidity).toHaveBeenCalled();
+  expect(createRecord).not.toHaveBeenCalled();
+});
+it("submits false Boolean changes on edit without string coercion or unrelated defaults", async () => {
+  updateRecord.mockResolvedValue({ id: "01t000000000001AAA" });
+  const el = await mountNative(true);
+  const input = native(el, "IsActive");
+  input.value = false;
+  input.dispatchEvent(
+    new CustomEvent("change", { detail: { checked: false } })
+  );
+  await flush();
+  save(el);
+  await flush();
+  expect(updateRecord).toHaveBeenCalledWith(
+    { fields: { Id: "01t000000000001AAA", IsActive: false } },
+    { ifUnmodifiedSince: "2026-10-28T01:00:00.000Z" }
+  );
+});
+it("retains native entries and false defaults through server rejection then creates only once successfully", async () => {
+  createRecord
+    .mockRejectedValueOnce({
+      status: 400,
+      body: {
+        output: {
+          fieldErrors: {
+            Warranty_Months__c: [{ message: "保固月數必須介於 0 到 60 個月。" }]
+          }
+        }
+      }
+    })
+    .mockResolvedValueOnce({ id: "01t000000000001AAA" });
+  const el = await mountNative();
+  native(el, "Name").value = "QA recovery";
+  native(el, "ProductCode").value = "recovery-code";
+  native(el, "Warranty_Months__c").value = 61;
+  date(el, "AvailabilityDate", "2026-11-10T06:00:00Z");
+  date(el, "DiscontinuedDate", "2026-11-10T07:00:00Z");
+  save(el);
+  await flush();
+  expect(el.shadowRoot.textContent).toContain(
+    "保固月數必須介於 0 到 60 個月。"
+  );
+  expect(native(el, "Name").value).toBe("QA recovery");
+  expect(native(el, "ProductCode").value).toBe("recovery-code");
+  expect(native(el, "CurrencyIsoCode").value).toBe("USD");
+  native(el, "Warranty_Months__c").value = 12;
+  native(el, "Warranty_Months__c").dispatchEvent(new CustomEvent("change"));
+  await flush();
+  save(el);
+  await flush();
+  save(el);
+  expect(createRecord).toHaveBeenCalledTimes(2);
+  expect(createRecord.mock.calls[1][0].fields).toEqual(
+    expect.objectContaining({
+      Name: "QA recovery",
+      ProductCode: "recovery-code",
+      CurrencyIsoCode: "USD",
+      IsActive: false,
+      Dealer_Exclusive__c: false,
+      Requires_Installation__c: false,
+      Warranty_Months__c: 12,
+      DiscontinuedDate: "2026-11-10T07:00:00Z"
+    })
+  );
+});
+it("normalizes native scalar picklist arrays only in the write payload", async () => {
+  createRecord.mockResolvedValue({ id: "01t000000000001AAA" });
+  const el = await mountNative();
+  native(el, "Name").value = "QA scalar";
+  native(el, "CurrencyIsoCode").value = ["USD"];
+  native(el, "CurrencyIsoCode").dispatchEvent(
+    new CustomEvent("change", { detail: { value: ["USD"] } })
+  );
+  await flush();
+  save(el);
+  await flush();
+  expect(createRecord.mock.calls[0][0].fields.CurrencyIsoCode).toBe("USD");
+});
+it("still rejects an empty required currency with unchecked Booleans present", async () => {
+  const el = await mountNative();
+  native(el, "CurrencyIsoCode").value = null;
+  native(el, "CurrencyIsoCode").reportValidity = jest.fn(() => false);
+  save(el);
+  await flush();
+  expect(createRecord).not.toHaveBeenCalled();
+});
