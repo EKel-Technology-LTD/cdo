@@ -251,7 +251,9 @@ class ApexSourceContracts(unittest.TestCase):
         for name in ('sharingModel','externalSharingModel'):
             self.assertEqual('Private',obj.find(ns+name).text)
         self.assertIsNone(obj.find(ns+'grantAccessUsingHierarchies'))
-        self.assertEqual('true',obj.find(ns+'enableSharing').text)
+        # Salesforce requires this capability trio to match; keep all disabled.
+        for name in ('enableSharing','enableBulkApi','enableStreamingApi'):
+            self.assertEqual('false',obj.find(ns+name).text,name)
         for name in ('enableReports','enableSearch'):
             self.assertEqual('false',obj.find(ns+name).text)
         key=ET.parse(folder/'fields/Lock_Key__c.field-meta.xml')

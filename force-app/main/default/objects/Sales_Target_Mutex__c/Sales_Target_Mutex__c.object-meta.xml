@@ -9,7 +9,7 @@
     <enableHistory>false</enableHistory>
     <enableReports>false</enableReports>
     <enableSearch>false</enableSearch>
-    <enableSharing>true</enableSharing>
+    <enableSharing>false</enableSharing>
     <enableStreamingApi>false</enableStreamingApi>
     <externalSharingModel>Private</externalSharingModel>
     <!-- Mandatory release prerequisite: Grant Access Using Hierarchies must be
