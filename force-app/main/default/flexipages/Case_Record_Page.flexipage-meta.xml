@@ -149,7 +149,7 @@
     <flexiPageRegions>
         <itemInstances>
             <componentInstance>
-                <componentName>forceChatter:recordFeed</componentName>
+                <componentName>forceChatter:recordFeedContainer</componentName>
                 <identifier>caseFeed</identifier>
             </componentInstance>
         </itemInstances>
