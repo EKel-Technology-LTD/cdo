@@ -6,7 +6,31 @@
       "type": "bash",
       "file": "case-summary-activate.sh",
       "timeoutMinutes": 10,
-      "deploymentEffect": "metadata"
+      "deploymentEffect": "metadata",
+      "metadataBoundary": {
+        "after": [
+          "force-app/main/default/classes/CaseResolutionSummaryGrounding.cls",
+          "force-app/main/default/classes/CaseResolutionSummaryGrounding.cls-meta.xml",
+          "force-app/main/default/classes/CaseResolutionSummaryGroundingTest.cls",
+          "force-app/main/default/classes/CaseResolutionSummaryGroundingTest.cls-meta.xml",
+          "force-app/main/default/customPermissions/Case_Summary_Generation.customPermission-meta.xml",
+          "force-app/main/default/genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml",
+          "force-app/main/default/permissionsets/Case_Summary_Generation/Case_Summary_Generation.classAccess-meta.xml",
+          "force-app/main/default/permissionsets/Case_Summary_Generation/Case_Summary_Generation.permissionset-meta.xml",
+          "force-app/main/default/permissionsets/Case_Summary_Generation/Case_Summary_Generation.userPermission-meta.xml"
+        ],
+        "before": [
+          "force-app/main/default/flexipages/Case_Record_Page.flexipage-meta.xml",
+          "force-app/main/default/applications/standard__LightningService.app-meta.xml"
+        ]
+      }
+    },
+    {
+      "id": "verify-case-summary-page",
+      "type": "bash",
+      "file": "case-summary-verify-page.sh",
+      "timeoutMinutes": 5,
+      "deploymentEffect": "none"
     },
     {
       "id": "assign-case-summary-access",

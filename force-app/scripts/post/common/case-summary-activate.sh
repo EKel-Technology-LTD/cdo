@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Orchard alone executes this action, against the authenticated target supplied twice.
+# Orchard runs this staged action after grounding/template deployment and before the bound page.
+# Use the retrieved generated identifier; never guess a version or change the page binding.
 [[ $# -eq 1 && -n "${ORCHARD_TARGET_ORG:-}" && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target mismatch' >&2; exit 1; }
 python3 - "$1" <<'PY'
 import json, pathlib, subprocess, sys, tempfile, xml.etree.ElementTree as ET
@@ -57,22 +58,11 @@ try:
             if active is None: active=ET.Element(q('activeVersionIdentifier'));root.insert(0,active)
             active.text=version
             ET.ElementTree(root).write(path,encoding='UTF-8',xml_declaration=True)
-            deployment=sf('project','deploy','start','--source-dir',str(path),'--wait','2','--api-version','67.0')
+            deployment=sf('project','deploy','start','--source-dir',str(path),'--wait','2','--api-version','67.0','--test-level','RunRelevantTests')
             if deployment.get('success') is not True or deployment.get('status')!='Succeeded': raise RuntimeError('Activation deployment is not verified; do not replay')
         _,verified,after=retrieve(folder/'after')
         if verified.findtext('m:activeVersionIdentifier',namespaces=ns)!=version: raise RuntimeError('Activation readback mismatch')
-        app_receipt=sf('project','retrieve','start','--metadata','CustomApplication:standard__LightningService','--output-dir',str(folder/'application'),'--wait','2','--api-version','67.0')
-        apps=list((folder/'application').rglob('standard__LightningService.app-meta.xml'))
-        if len(apps)!=1: raise RuntimeError('Application readback is incomplete')
-        def semantic(element):
-            children={}
-            for child in element:
-                children.setdefault(child.tag,[]).append(semantic(child))
-            return element.tag,(element.text or '').strip(),children
-        expected_app=ET.parse('force-app/main/default/applications/standard__LightningService.app-meta.xml').getroot()
-        actual_app=ET.parse(apps[0]).getroot()
-        if semantic(expected_app)!=semantic(actual_app): raise RuntimeError('Application settings or Case page activation readback mismatch')
-        print(json.dumps({'applicationRetrieveId':app_receipt.get('id'),'orgId':records[0]['Id'],'template':'Case_Resolution_Summary','previousActiveVersionIdentifier':previous,'activeVersionIdentifier':version,'retrieveId':after.get('id'),'deploymentId':None if deployment is None else deployment.get('id')}))
+        print(json.dumps({'orgId':records[0]['Id'],'template':'Case_Resolution_Summary','previousActiveVersionIdentifier':previous,'activeVersionIdentifier':version,'retrieveId':after.get('id'),'deploymentId':None if deployment is None else deployment.get('id')}))
 except Exception as error:
     print('Case summary activation blocked: '+str(error),file=sys.stderr)
     sys.exit(1)
