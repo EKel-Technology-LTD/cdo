@@ -12,7 +12,16 @@
     <enableSharing>true</enableSharing>
     <enableStreamingApi>false</enableStreamingApi>
     <externalSharingModel>Private</externalSharingModel>
-    <grantAccessUsingHierarchies>false</grantAccessUsingHierarchies>
+    <!-- Mandatory release prerequisite: Grant Access Using Hierarchies must be
+         disabled and independently VERIFIED on this exact target before any
+         persistent DAILY_ACTUALS mutex-record provisioning or activation.
+         The unsupported grantAccessUsingHierarchies XML property is deliberately
+         omitted under the approved source-only correction; omission and successful
+         check-only validation are NOT evidence that hierarchy access is disabled.
+         Retain target-bound verification evidence with the release approval;
+         missing or inconclusive evidence blocks provisioning and activation.
+         Private sharing, no CRUD grants and fail-closed machine binding remain
+         mandatory. This source change authorizes no org writes. -->
     <label>Sales Target Mutex</label>
     <nameField><displayFormat>STM-{000000}</displayFormat><label
     >Mutex Number</label><type>AutoNumber</type></nameField>

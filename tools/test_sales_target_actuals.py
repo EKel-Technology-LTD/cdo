@@ -250,7 +250,9 @@ class ApexSourceContracts(unittest.TestCase):
         obj=ET.parse(folder/'Sales_Target_Mutex__c.object-meta.xml')
         for name in ('sharingModel','externalSharingModel'):
             self.assertEqual('Private',obj.find(ns+name).text)
-        for name in ('grantAccessUsingHierarchies','enableReports','enableSearch'):
+        self.assertIsNone(obj.find(ns+'grantAccessUsingHierarchies'))
+        self.assertEqual('true',obj.find(ns+'enableSharing').text)
+        for name in ('enableReports','enableSearch'):
             self.assertEqual('false',obj.find(ns+name).text)
         key=ET.parse(folder/'fields/Lock_Key__c.field-meta.xml')
         self.assertEqual('true',key.find(ns+'unique').text)
@@ -266,6 +268,21 @@ class ApexSourceContracts(unittest.TestCase):
                          'singletonKeyRejectsDuplicateAndInvalidRows',
                          'unauthorizedScheduleCreationAndStopFailBeforeLockRead'):
             self.assertIn(required,self.tests)
+
+    def test_hierarchy_access_is_a_verified_release_prerequisite(self):
+        # Documentation/source guards only: this does not verify any org setting.
+        metadata=(ROOT/'force-app/main/default/objects/Sales_Target_Mutex__c/Sales_Target_Mutex__c.object-meta.xml').read_text()
+        for required in ('Mandatory release prerequisite', 'independently VERIFIED',
+                         'before any', 'mutex-record provisioning or activation',
+                         'missing or inconclusive evidence blocks'):
+            self.assertIn(required,metadata)
+        for required in ('MANDATORY RELEASE PREREQUISITE (separately VERIFIED',
+                         'Grant Access Using Hierarchies is disabled',
+                         'exact-target evidence', 'source revision, verifier, timestamp',
+                         'Missing or inconclusive proof',
+                         'authorization file is not hierarchy-access evidence',
+                         'authorizes NO org changes'):
+            self.assertIn(required,SOURCE)
 
     def test_owned_rollback_is_guarded_and_read_back(self):
         stop=self.scheduler.split('public static Id stopOwnedSchedule()',1)[1]

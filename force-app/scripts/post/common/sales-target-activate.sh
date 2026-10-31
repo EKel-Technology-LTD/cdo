@@ -3,6 +3,18 @@
 # No permission assignment, migration, metadata deployment or automatic writer resume.
 # Requires the separately provisioned DAILY_ACTUALS mutex bound to this machine;
 # createOwnedSchedule fails closed and never creates or repairs that record.
+# MANDATORY RELEASE PREREQUISITE (separately VERIFIED, never inferred):
+# Before any persistent mutex-record provisioning OR activation, the release owner
+# must retain exact-target evidence that Grant Access Using Hierarchies is disabled
+# for Sales_Target_Mutex__c. Record target/org, source revision, verifier, timestamp
+# and observed disabled setting in release evidence. Missing or inconclusive proof
+# blocks provisioning and activation; neither Private OWD, enableSharing, omitted
+# XML nor successful check-only validation proves this setting. The runner's
+# authorization file is not hierarchy-access evidence. Do not run this action
+# until that separate mandatory gate is verified under future release approval.
+# Preserve Private internal/external sharing, no CRUD grants, and fail-closed
+# machine binding. This source correction authorizes NO org changes, persistent
+# lock creation, backfill, permission assignment, schedule activation or release.
 # Stage 2 must already be installed and keys must pass a fresh exhaustive audit.
 # Uses only the declared Orchard releaseInputs contract (platform 1.2.1345,
 # 6a541555b86616f6de4cffb9b3144fb100ada9de). The runner verifies the exact
