@@ -1,5 +1,5 @@
 /** Isolated synthetic acceptance tests; no live migration or schedule activation. */
-@IsTest
+@IsTest(testFor='ApexClass:SalesTargetActualsBatch,ApexClass:SalesTargetActualsSchedulable')
 private with sharing class SalesTargetActualsTest {
   private static final Date TODAY = Date.newInstance(2026, 10, 28);
   @TestSetup

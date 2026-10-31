@@ -1,4 +1,4 @@
-@IsTest
+@IsTest(testFor='ApexClass:SalesTargetCurrencyPolicy,ApexTrigger:SalesTargetBeforeSave')
 private class SalesTargetCurrencyPolicyTest {
   @TestSetup
   static void users() {
