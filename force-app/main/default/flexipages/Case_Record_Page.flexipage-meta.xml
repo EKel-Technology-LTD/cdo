@@ -155,7 +155,8 @@
         </itemInstances>
         <itemInstances>
             <componentInstance>
-                <componentName>runtime_activities:activityPanel</componentName>
+                <componentName
+        >runtime_sales_activities:activityPanel</componentName>
                 <identifier>caseActivity</identifier>
             </componentInstance>
         </itemInstances>

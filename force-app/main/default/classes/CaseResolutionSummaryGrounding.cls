@@ -1,6 +1,15 @@
 /** Native Field Generation grounding only. Never writes records or invokes a model. */
 public with sharing class CaseResolutionSummaryGrounding {
   private static final String FAILURE = '無法準備案件摘要，請確認存取權限與案件資料。';
+  // Native field generation normally supplies one Case. Two is the supported
+  // batch ceiling, NOT 200: a SOQL for-loop may materialize every parent at once.
+  // At the current schema maxima, ten 131072-character email bodies alone need
+  // ~2.63 MB (UTF-16). Case descriptions, comments and diagnoses add <0.26 MB.
+  // Reserve 5 MB for raw rows, normalization, JSON and object overhead, against
+  // the smaller API-67 synchronous 6 MB budget even on a larger-heap runtime.
+  private static final Integer MAX_INPUTS = 2;
+  private static final Integer HEAP_CEILING = 6000000;
+  private static final Integer PREPARATION_RESERVE = 5000000;
   public class PreparationException extends Exception {
   }
   public class Request {
@@ -26,7 +35,8 @@ public with sharing class CaseResolutionSummaryGrounding {
         ) ||
         requests == null ||
         requests.isEmpty() ||
-        requests.size() > 200
+        requests.size() > MAX_INPUTS ||
+        !hasPreparationHeadroom()
       )
         throw new PreparationException(FAILURE);
       Set<Id> ids = new Set<Id>();
@@ -53,11 +63,15 @@ public with sharing class CaseResolutionSummaryGrounding {
       }
       if (editable.size() != ids.size())
         throw new PreparationException(FAILURE);
+      // Recheck immediately before materializing bodies (authorization used heap).
+      if (!hasPreparationHeadroom())
+        throw new PreparationException(FAILURE);
       // Child LIMITs apply separately to each case, not to the combined input batch.
       // Persisted Ids alone are trusted. No customer/owner/technician traversal.
       Map<Id, String> prompts = new Map<Id, String>();
       Integer preparedCharacters = 0;
-      // Stream parents; retain only sanitized output, not a map of raw records.
+      // The pre-query budget bounds materialization; this loop alone is NOT a
+      // heap safeguard. Retain only sanitized output, not a map of raw records.
       for (Case c : [
         SELECT
           Id,
@@ -198,6 +212,10 @@ public with sharing class CaseResolutionSummaryGrounding {
       // Never log source, exception messages, prompt content or identifiers.
       throw new PreparationException(FAILURE);
     }
+  }
+  private static Boolean hasPreparationHeadroom() {
+    return Limits.getHeapSize() <=
+      Math.min(HEAP_CEILING, Limits.getLimitHeapSize()) - PREPARATION_RESERVE;
   }
   @TestVisible
   private static Boolean authorized(
