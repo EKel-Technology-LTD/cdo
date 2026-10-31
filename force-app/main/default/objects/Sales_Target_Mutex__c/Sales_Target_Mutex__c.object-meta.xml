@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description
+  >System-only org-wide mutex for sales target launch, recovery, schedule creation and stop. A separately authorized release provisions exactly one DAILY_ACTUALS row bound to its designated machine. Runtime paths never provision it.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>false</enableBulkApi>
+    <enableFeeds>false</enableFeeds>
+    <enableHistory>false</enableHistory>
+    <enableReports>false</enableReports>
+    <enableSearch>false</enableSearch>
+    <enableSharing>true</enableSharing>
+    <enableStreamingApi>false</enableStreamingApi>
+    <externalSharingModel>Private</externalSharingModel>
+    <grantAccessUsingHierarchies>false</grantAccessUsingHierarchies>
+    <label>Sales Target Mutex</label>
+    <nameField><displayFormat>STM-{000000}</displayFormat><label
+    >Mutex Number</label><type>AutoNumber</type></nameField>
+    <pluralLabel>Sales Target Mutexes</pluralLabel>
+    <sharingModel>Private</sharingModel>
+    <visibility>Public</visibility>
+</CustomObject>

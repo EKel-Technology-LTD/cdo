@@ -17,26 +17,47 @@ public with sharing class SalesTargetActualsSchedulable implements Schedulable {
     }
     launch();
   }
-  /** Returns an existing active job rather than starting an overlapping recalculation. */
-  public static Id launch() {
+  /**
+   * Locks the single org-wide mutex for the entire transaction. Provisioning is
+   * a separately authorized release prerequisite; never create a fallback row.
+   * SYSTEM_MODE is intentional: no human or machine object CRUD is granted.
+   * The row binds the designated machine, not the incidental deployer.
+   */
+  private static Id acquireMutex() {
     SalesTargetActualsBatch.requirePermission();
     Id actor = UserInfo.getUserId();
-    List<User> identityLock = [
+    List<Sales_Target_Mutex__c> locks = [
+      SELECT Id, Machine_User__c
+      FROM Sales_Target_Mutex__c
+      WHERE Lock_Key__c = 'DAILY_ACTUALS'
+      WITH SYSTEM_MODE
+      FOR UPDATE
+    ];
+    if (locks.size() != 1 || locks[0].Machine_User__c != actor) {
+      throw new SalesTargetActualsBatch.ActualsException(
+        'Sales target mutex is missing or bound to another machine.'
+      );
+    }
+    List<User> identities = [
       SELECT Id, IsActive, TimeZoneSidKey
       FROM User
       WHERE Id = :actor
       WITH SYSTEM_MODE
-      FOR UPDATE
     ];
     if (
-      identityLock.size() != 1 ||
-      !identityLock[0].IsActive ||
-      identityLock[0].TimeZoneSidKey != 'America/Los_Angeles'
+      identities.size() != 1 ||
+      !identities[0].IsActive ||
+      identities[0].TimeZoneSidKey != 'America/Los_Angeles'
     ) {
       throw new SalesTargetActualsBatch.ActualsException(
         'An active America/Los_Angeles machine is required.'
       );
     }
+    return actor;
+  }
+  /** Returns an existing active job rather than starting an overlapping recalculation. */
+  public static Id launch() {
+    acquireMutex();
     List<AsyncApexJob> active = [
       SELECT Id
       FROM AsyncApexJob
@@ -52,20 +73,50 @@ public with sharing class SalesTargetActualsSchedulable implements Schedulable {
     return Database.executeBatch(new SalesTargetActualsBatch(), 25);
   }
   /**
+   * Creates the daily schedule only after the release action has verified its
+   * authorization, keys, currency and metadata. Concurrent callers serialize
+   * with launch/recovery and stop; existing schedules must be read back, not
+   * silently replaced. No persistent mutex provisioning occurs here.
+   * @return the new machine-owned CronTrigger ID
+   */
+  public static Id createOwnedSchedule() {
+    acquireMutex();
+    Set<Id> boundCronIds = new Set<Id>();
+    for (AsyncApexJob binding : [
+      SELECT CronTriggerId
+      FROM AsyncApexJob
+      WHERE
+        JobType = 'ScheduledApex'
+        AND ApexClass.Name = 'SalesTargetActualsSchedulable'
+      WITH SYSTEM_MODE
+    ]) {
+      if (binding.CronTriggerId != null)
+        boundCronIds.add(binding.CronTriggerId);
+    }
+    List<CronTrigger> existing = [
+      SELECT Id
+      FROM CronTrigger
+      WHERE
+        (CronJobDetail.Name = :JOB_NAME
+        OR Id IN :boundCronIds)
+        AND State NOT IN ('DELETED', 'COMPLETE')
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
+    if (!existing.isEmpty()) {
+      throw new SalesTargetActualsBatch.ActualsException(
+        'An actuals schedule already exists; read back before retry.'
+      );
+    }
+    return System.schedule(JOB_NAME, CRON, new SalesTargetActualsSchedulable());
+  }
+  /**
    * Separately authorized rollback entry. Stops only the exact owned scheduler;
    * never changes target data, keys, permissions, or unrelated scheduled jobs.
    * @return the stopped CronTrigger ID, or null when no active owned job exists
    */
   public static Id stopOwnedSchedule() {
-    SalesTargetActualsBatch.requirePermission();
-    Id actor = UserInfo.getUserId();
-    List<User> identityLock = [
-      SELECT Id
-      FROM User
-      WHERE Id = :actor
-      WITH SYSTEM_MODE
-      FOR UPDATE
-    ];
+    Id actor = acquireMutex();
     List<CronTrigger> jobs = [
       SELECT Id, OwnerId
       FROM CronTrigger

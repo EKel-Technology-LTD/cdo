@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Orchard action runner only. Schedules only the authorized machine-owned daily job.
 # No permission assignment, migration, metadata deployment or automatic writer resume.
+# Requires the separately provisioned DAILY_ACTUALS mutex bound to this machine;
+# createOwnedSchedule fails closed and never creates or repairs that record.
 # Stage 2 must already be installed and keys must pass a fresh exhaustive audit.
 # Uses only the declared Orchard releaseInputs contract (platform 1.2.1345,
 # 6a541555b86616f6de4cffb9b3144fb100ada9de). The runner verifies the exact
@@ -361,7 +363,7 @@ try:
     else:
         verify_schedule_inventory()
         try:
-            apex("Id actor=UserInfo.getUserId(); List<User> identityLock=[SELECT Id,IsActive,TimeZoneSidKey FROM User WHERE Id=:actor WITH SYSTEM_MODE FOR UPDATE]; System.assertEquals(1,identityLock.size()); System.assert(identityLock[0].IsActive); System.assertEquals('America/Los_Angeles',identityLock[0].TimeZoneSidKey); List<CronTrigger> jobs=[SELECT Id FROM CronTrigger WHERE CronJobDetail.Name='Sales Target Daily Actuals' AND State NOT IN ('DELETED','COMPLETE') WITH SYSTEM_MODE]; System.assertEquals(0,jobs.size(),'Concurrent schedule installation; read back before retry'); String jobId=System.schedule(SalesTargetActualsSchedulable.JOB_NAME,SalesTargetActualsSchedulable.CRON,new SalesTargetActualsSchedulable()); System.debug(LoggingLevel.ERROR,'ST_PREFLIGHT:'+JSON.serialize(jobId));")
+            apex("Id jobId=SalesTargetActualsSchedulable.createOwnedSchedule(); System.debug(LoggingLevel.ERROR,'ST_PREFLIGHT:'+JSON.serialize(jobId));")
         except (GateError, subprocess.TimeoutExpired, ValueError):
             emit('schedule_uncertain_readback', schedules=schedule_rows())
             raise

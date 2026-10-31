@@ -40,6 +40,16 @@ private with sharing class SalesTargetActualsTest {
       PermissionSetId = permission.Id
     );
   }
+  /** Synthetic transaction-local mutex only; all test records roll back. */
+  private static void createMutex(Id machine) {
+    Database.insert(
+      new Sales_Target_Mutex__c(
+        Lock_Key__c = 'DAILY_ACTUALS',
+        Machine_User__c = machine
+      ),
+      AccessLevel.SYSTEM_MODE
+    );
+  }
   private static User person(Integer i) {
     String lastName = 'ST60 ' + i;
     return [SELECT Id, IsActive FROM User WHERE LastName = :lastName LIMIT 1];
@@ -473,6 +483,7 @@ private with sharing class SalesTargetActualsTest {
   @IsTest
   static void launchSerializesRecoveryAndSkipsOverlap() {
     System.runAs(person(25)) {
+      createMutex(UserInfo.getUserId());
       SalesTargetActualsBatch.testToday = TODAY;
       Test.startTest();
       Id first = SalesTargetActualsSchedulable.launch();
@@ -497,12 +508,18 @@ private with sharing class SalesTargetActualsTest {
   static void dailyCronIsOwnedAndLosAngeles() {
     User machine = person(25);
     System.runAs(machine) {
+      createMutex(machine.Id);
       Test.startTest();
-      String job = System.schedule(
-        SalesTargetActualsSchedulable.JOB_NAME,
-        SalesTargetActualsSchedulable.CRON,
-        new SalesTargetActualsSchedulable()
-      );
+      Id job = SalesTargetActualsSchedulable.createOwnedSchedule();
+      try {
+        SalesTargetActualsSchedulable.createOwnedSchedule();
+        Assert.fail('Duplicate schedule creation must fail closed');
+      } catch (SalesTargetActualsBatch.ActualsException ex) {
+        Assert.isTrue(
+          ex.getMessage().contains('already exists'),
+          'Readback required'
+        );
+      }
       CronTrigger cron = [
         SELECT OwnerId, CronExpression, TimeZoneSidKey, NextFireTime
         FROM CronTrigger
@@ -517,7 +534,7 @@ private with sharing class SalesTargetActualsTest {
       );
       Assert.isNotNull(cron.NextFireTime, 'Next fire recorded');
       Assert.areEqual(
-        Id.valueOf(job),
+        job,
         SalesTargetActualsSchedulable.stopOwnedSchedule(),
         'Stop only the verified owned scheduler'
       );
@@ -690,6 +707,7 @@ private with sharing class SalesTargetActualsTest {
     User machine = person(25);
     update new User(Id = machine.Id, TimeZoneSidKey = 'GMT');
     System.runAs(machine) {
+      createMutex(machine.Id);
       Test.startTest();
       try {
         SalesTargetActualsSchedulable.launch();
@@ -705,6 +723,141 @@ private with sharing class SalesTargetActualsTest {
           WHERE ApexClass.Name = 'SalesTargetActualsBatch'
         ],
         'No batch dispatched'
+      );
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void missingMutexBlocksEveryEntryWithoutProvisioning() {
+    System.runAs(person(25)) {
+      Test.startTest();
+      assertMutexEntriesFail();
+      Assert.areEqual(
+        0,
+        [SELECT COUNT() FROM Sales_Target_Mutex__c WITH SYSTEM_MODE],
+        'Runtime must not create a fallback singleton'
+      );
+      Assert.areEqual(0, Limits.getDmlStatements(), 'No runtime provisioning');
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void anotherMachineBindingBlocksEveryEntry() {
+    User other = person(0);
+    System.runAs(person(25)) {
+      createMutex(other.Id);
+      Test.startTest();
+      assertMutexEntriesFail();
+      Test.stopTest();
+    }
+  }
+  private static void assertMutexEntriesFail() {
+    try {
+      SalesTargetActualsSchedulable.launch();
+      Assert.fail('Launch needs the bound singleton');
+    } catch (SalesTargetActualsBatch.ActualsException ex) {
+      Assert.isTrue(
+        ex.getMessage().contains('mutex'),
+        'Mutex failure is explicit'
+      );
+    }
+    try {
+      SalesTargetActualsSchedulable.createOwnedSchedule();
+      Assert.fail('Creation needs the bound singleton');
+    } catch (SalesTargetActualsBatch.ActualsException ex) {
+      Assert.isTrue(
+        ex.getMessage().contains('mutex'),
+        'Mutex failure is explicit'
+      );
+    }
+    try {
+      SalesTargetActualsSchedulable.stopOwnedSchedule();
+      Assert.fail(
+        'Stop needs the bound singleton even when no schedule exists'
+      );
+    } catch (SalesTargetActualsBatch.ActualsException ex) {
+      Assert.isTrue(
+        ex.getMessage().contains('mutex'),
+        'Mutex failure is explicit'
+      );
+    }
+    Assert.areEqual(
+      0,
+      [
+        SELECT COUNT()
+        FROM AsyncApexJob
+        WHERE
+          ApexClass.Name IN (
+            'SalesTargetActualsBatch',
+            'SalesTargetActualsSchedulable'
+          )
+        WITH SYSTEM_MODE
+      ],
+      'No jobs created on rejected paths'
+    );
+  }
+  @IsTest
+  static void singletonKeyRejectsDuplicateAndInvalidRows() {
+    System.runAs(person(25)) {
+      createMutex(UserInfo.getUserId());
+      Test.startTest();
+      Database.SaveResult duplicate = Database.insert(
+        new Sales_Target_Mutex__c(
+          Lock_Key__c = 'DAILY_ACTUALS',
+          Machine_User__c = UserInfo.getUserId()
+        ),
+        false,
+        AccessLevel.SYSTEM_MODE
+      );
+      Assert.isFalse(duplicate.isSuccess(), 'Unique key prevents two locks');
+      Assert.areEqual(
+        StatusCode.DUPLICATE_VALUE,
+        duplicate.getErrors()[0].getStatusCode(),
+        'Atomic uniqueness is the race safeguard'
+      );
+      Database.SaveResult invalid = Database.insert(
+        new Sales_Target_Mutex__c(
+          Lock_Key__c = 'OTHER',
+          Machine_User__c = UserInfo.getUserId()
+        ),
+        false,
+        AccessLevel.SYSTEM_MODE
+      );
+      Assert.isFalse(invalid.isSuccess(), 'Only the singleton key is valid');
+      Assert.areEqual(
+        StatusCode.FIELD_CUSTOM_VALIDATION_EXCEPTION,
+        invalid.getErrors()[0].getStatusCode(),
+        'Invalid key is blocked'
+      );
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void unauthorizedScheduleCreationAndStopFailBeforeLockRead() {
+    System.runAs(person(0)) {
+      Test.startTest();
+      try {
+        SalesTargetActualsSchedulable.createOwnedSchedule();
+        Assert.fail('Human schedule creation must fail');
+      } catch (SalesTargetActualsBatch.ActualsException ex) {
+        Assert.isTrue(
+          ex.getMessage().contains('permission'),
+          'Permission checked first'
+        );
+      }
+      try {
+        SalesTargetActualsSchedulable.stopOwnedSchedule();
+        Assert.fail('Human stop must fail');
+      } catch (SalesTargetActualsBatch.ActualsException ex) {
+        Assert.isTrue(
+          ex.getMessage().contains('permission'),
+          'Permission checked first'
+        );
+      }
+      Assert.areEqual(
+        0,
+        Limits.getQueries(),
+        'No mutex or job reads for unauthorized callers'
       );
       Test.stopTest();
     }

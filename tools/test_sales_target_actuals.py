@@ -79,9 +79,9 @@ class ActivationContract(unittest.TestCase):
         text=ast.unparse(entry)
         self.assertLess(text.index('load_release_inputs'),text.index('metadata_gates'))
         self.assertLess(text.index('metadata_gates'),text.index('verify_active_flow'))
-        self.assertLess(text.index('audit_currencies(before'),text.index('System.schedule('))
-        self.assertLess(text.index('verify_schedule_inventory()'),text.index('System.schedule('))
-        self.assertLess(text.index('System.schedule('),text.index('job = verify_schedule'))
+        self.assertLess(text.index('audit_currencies(before'),text.index('SalesTargetActualsSchedulable.createOwnedSchedule('))
+        self.assertLess(text.index('verify_schedule_inventory()'),text.index('SalesTargetActualsSchedulable.createOwnedSchedule('))
+        self.assertLess(text.index('SalesTargetActualsSchedulable.createOwnedSchedule('),text.index('job = verify_schedule'))
         self.assertLess(text.index('job = verify_schedule'),text.index('after = target_rows'))
         self.assertIn('schedule_uncertain_readback',text)
         self.assertIn('raise',text)
@@ -208,9 +208,51 @@ class ApexSourceContracts(unittest.TestCase):
         self.assertIn("'Holding', 'Queued', 'Preparing', 'Processing'",self.scheduler)
         self.assertIn('Database.executeBatch(new SalesTargetActualsBatch(), 25)',self.scheduler)
 
+    def test_all_control_paths_share_system_only_mutex(self):
+        guard=self.scheduler.split('private static Id acquireMutex()',1)[1].split('/** Returns',1)[0]
+        self.assertIn('SalesTargetActualsBatch.requirePermission()',guard)
+        self.assertIn('FROM Sales_Target_Mutex__c',guard)
+        self.assertIn("Lock_Key__c = 'DAILY_ACTUALS'",guard)
+        self.assertIn('locks[0].Machine_User__c != actor',guard)
+        self.assertIn('locks.size() != 1',guard)
+        self.assertIn('WITH SYSTEM_MODE',guard)
+        self.assertIn('FOR UPDATE',guard)
+        for query in re.findall(r'\[(.*?)\]',self.scheduler,re.S):
+            if re.search(r'FROM\s+User\b',query):
+                self.assertNotIn('FOR UPDATE',query)
+        for entry in ('launch','createOwnedSchedule','stopOwnedSchedule'):
+            method=self.scheduler.split('public static Id '+entry+'()',1)[1].split('\n  }',1)[0]
+            self.assertIn('acquireMutex()',method)
+        self.assertNotIn('FOR UPDATE',BODY)
+        self.assertNotIn('System.schedule(',BODY)
+        self.assertNotIn('new Sales_Target_Mutex__c',self.scheduler)
+
+    def test_mutex_metadata_has_no_business_access_grants(self):
+        folder=ROOT/'force-app/main/default/objects/Sales_Target_Mutex__c'
+        ns='{http://soap.sforce.com/2006/04/metadata}'
+        obj=ET.parse(folder/'Sales_Target_Mutex__c.object-meta.xml')
+        for name in ('sharingModel','externalSharingModel'):
+            self.assertEqual('Private',obj.find(ns+name).text)
+        for name in ('grantAccessUsingHierarchies','enableReports','enableSearch'):
+            self.assertEqual('false',obj.find(ns+name).text)
+        key=ET.parse(folder/'fields/Lock_Key__c.field-meta.xml')
+        self.assertEqual('true',key.find(ns+'unique').text)
+        self.assertEqual('true',key.find(ns+'required').text)
+        rule=ET.parse(folder/'validationRules/System_Only_Singleton.validationRule-meta.xml')
+        formula=rule.find(ns+'errorConditionFormula').text
+        for required in ('NOT($Permission.Sales_Target_System_Write)', 'DAILY_ACTUALS', 'ISBLANK(Machine_User__c)'):
+            self.assertIn(required,formula)
+        for permission in (ROOT/'force-app/main/default/permissionsets').rglob('*.xml'):
+            self.assertNotIn('Sales_Target_Mutex__c',permission.read_text(),str(permission))
+        for required in ('missingMutexBlocksEveryEntryWithoutProvisioning',
+                         'anotherMachineBindingBlocksEveryEntry',
+                         'singletonKeyRejectsDuplicateAndInvalidRows',
+                         'unauthorizedScheduleCreationAndStopFailBeforeLockRead'):
+            self.assertIn(required,self.tests)
+
     def test_owned_rollback_is_guarded_and_read_back(self):
         stop=self.scheduler.split('public static Id stopOwnedSchedule()',1)[1]
-        self.assertLess(stop.index('requirePermission()'),stop.index('System.abortJob'))
+        self.assertLess(stop.index('acquireMutex()'),stop.index('System.abortJob'))
         self.assertIn('jobs[0].OwnerId != actor',stop)
         self.assertIn('CronTriggerId = :cronId',stop)
         self.assertIn('binding.CreatedById != actor',stop)
