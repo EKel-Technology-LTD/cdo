@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "activate-case-summary",
+      "type": "bash",
+      "file": "case-summary-activate.sh",
+      "timeoutMinutes": 10,
+      "deploymentEffect": "metadata"
+    },
+    {
+      "id": "assign-case-summary-access",
+      "type": "bash",
+      "file": "case-summary-access.sh",
+      "timeoutMinutes": 5,
+      "deploymentEffect": "data"
+    }
+  ]
+}
