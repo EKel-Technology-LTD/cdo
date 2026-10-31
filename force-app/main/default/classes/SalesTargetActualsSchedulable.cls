@@ -26,18 +26,7 @@ public with sharing class SalesTargetActualsSchedulable implements Schedulable {
   private static Id acquireMutex() {
     SalesTargetActualsBatch.requirePermission();
     Id actor = UserInfo.getUserId();
-    List<Sales_Target_Mutex__c> locks = [
-      SELECT Id, Machine_User__c
-      FROM Sales_Target_Mutex__c
-      WHERE Lock_Key__c = 'DAILY_ACTUALS'
-      WITH SYSTEM_MODE
-      FOR UPDATE
-    ];
-    if (locks.size() != 1 || locks[0].Machine_User__c != actor) {
-      throw new SalesTargetActualsBatch.ActualsException(
-        'Sales target mutex is missing or bound to another machine.'
-      );
-    }
+    new MutexAccess().acquire();
     List<User> identities = [
       SELECT Id, IsActive, TimeZoneSidKey
       FROM User
@@ -54,6 +43,29 @@ public with sharing class SalesTargetActualsSchedulable implements Schedulable {
       );
     }
     return actor;
+  }
+  /**
+   * Only the system-only lock read bypasses record sharing. A separately
+   * authorized provisioner can own the private row; SYSTEM_MODE alone does
+   * not remove the outer scheduler's sharing boundary. Never provisions data.
+   */
+  private without sharing class MutexAccess {
+    public void acquire() {
+      SalesTargetActualsBatch.requirePermission();
+      Id actor = UserInfo.getUserId();
+      List<Sales_Target_Mutex__c> locks = [
+        SELECT Id, Machine_User__c
+        FROM Sales_Target_Mutex__c
+        WHERE Lock_Key__c = 'DAILY_ACTUALS'
+        WITH SYSTEM_MODE
+        FOR UPDATE
+      ];
+      if (locks.size() != 1 || locks[0].Machine_User__c != actor) {
+        throw new SalesTargetActualsBatch.ActualsException(
+          'Sales target mutex is missing or bound to another machine.'
+        );
+      }
+    }
   }
   /** Returns an existing active job rather than starting an overlapping recalculation. */
   public static Id launch() {

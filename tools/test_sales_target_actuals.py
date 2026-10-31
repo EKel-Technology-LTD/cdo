@@ -227,6 +227,23 @@ class ApexSourceContracts(unittest.TestCase):
         self.assertNotIn('System.schedule(',BODY)
         self.assertNotIn('new Sales_Target_Mutex__c',self.scheduler)
 
+    def test_mutex_sharing_bypass_is_private_and_narrow(self):
+        self.assertIn('public with sharing class SalesTargetActualsSchedulable',self.scheduler)
+        helper=self.scheduler.split('private without sharing class MutexAccess',1)[1].split('/** Returns',1)[0]
+        self.assertLess(helper.index('requirePermission()'),helper.index('FROM Sales_Target_Mutex__c'))
+        self.assertIn('FOR UPDATE',helper)
+        self.assertIn('locks[0].Machine_User__c != actor',helper)
+        self.assertNotIn('FROM User',helper)
+        self.assertNotIn('FROM AsyncApexJob',helper)
+        self.assertNotIn('Database.',helper)
+        guard=self.scheduler.split('private static Id acquireMutex()',1)[1].split('private without sharing',1)[0]
+        self.assertLess(guard.index('requirePermission()'),guard.index('new MutexAccess().acquire()'))
+        for required in ('separatelyOwnedMutexAllowsLaunchAndRecovery',
+                         'separatelyOwnedMutexAllowsScheduleAndStop',
+                         'PermissionsModifyAllData = FALSE', 'PermissionsViewAllData = FALSE',
+                         'System.runAs(provisioner)'):
+            self.assertIn(required,self.tests)
+
     def test_mutex_metadata_has_no_business_access_grants(self):
         folder=ROOT/'force-app/main/default/objects/Sales_Target_Mutex__c'
         ns='{http://soap.sforce.com/2006/04/metadata}'

@@ -727,6 +727,85 @@ private with sharing class SalesTargetActualsTest {
       Test.stopTest();
     }
   }
+  /** A private singleton owned by a different principal must still serialize. */
+  private static User provisionSeparatelyOwnedMutex() {
+    User machine = person(25);
+    Profile restricted = [
+      SELECT Id
+      FROM Profile
+      WHERE
+        UserType = 'Standard'
+        AND PermissionsModifyAllData = FALSE
+        AND PermissionsViewAllData = FALSE
+        AND UserLicense.Name = 'Salesforce'
+      LIMIT 1
+    ];
+    update new User(Id = machine.Id, ProfileId = restricted.Id);
+    User provisioner = person(24);
+    PermissionSet permission = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name = 'Sales_Target_System_Write_Access'
+    ];
+    insert new PermissionSetAssignment(
+      AssigneeId = provisioner.Id,
+      PermissionSetId = permission.Id
+    );
+    System.runAs(provisioner) {
+      createMutex(machine.Id);
+      Assert.areEqual(
+        provisioner.Id,
+        [SELECT OwnerId FROM Sales_Target_Mutex__c WITH SYSTEM_MODE].OwnerId,
+        'Separate synthetic provisioner owns the private singleton'
+      );
+    }
+    return machine;
+  }
+  @IsTest
+  static void separatelyOwnedMutexAllowsLaunchAndRecovery() {
+    User machine = provisionSeparatelyOwnedMutex();
+    System.runAs(machine) {
+      Assert.areEqual(
+        0,
+        [SELECT COUNT() FROM Sales_Target_Mutex__c WITH SYSTEM_MODE],
+        'With-sharing caller cannot see the separately owned private row'
+      );
+      Test.startTest();
+      Id first = SalesTargetActualsSchedulable.launch();
+      Assert.isNotNull(first, 'Bound machine acquires the shared singleton');
+      Assert.areEqual(
+        first,
+        SalesTargetActualsSchedulable.launch(),
+        'Recovery reuses the queued job'
+      );
+      new SalesTargetActualsSchedulable().execute(null);
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void separatelyOwnedMutexAllowsScheduleAndStop() {
+    User machine = provisionSeparatelyOwnedMutex();
+    System.runAs(machine) {
+      Assert.areEqual(
+        0,
+        [SELECT COUNT() FROM Sales_Target_Mutex__c WITH SYSTEM_MODE],
+        'Machine has no record sharing access to the singleton'
+      );
+      Test.startTest();
+      Id job = SalesTargetActualsSchedulable.createOwnedSchedule();
+      Assert.isNotNull(job, 'Bound machine can schedule using the shared lock');
+      Assert.areEqual(
+        job,
+        SalesTargetActualsSchedulable.stopOwnedSchedule(),
+        'Owned schedule stop uses the same shared singleton'
+      );
+      Assert.isNull(
+        SalesTargetActualsSchedulable.stopOwnedSchedule(),
+        'Repeated stop remains idempotent'
+      );
+      Test.stopTest();
+    }
+  }
   @IsTest
   static void missingMutexBlocksEveryEntryWithoutProvisioning() {
     System.runAs(person(25)) {
