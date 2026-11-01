@@ -343,13 +343,13 @@ public with sharing class CaseResolutionSummaryGrounding {
     for (Integer i = 0; i + 1 < detection.length(); i++) {
       Integer digit = detection.charAt(i);
       if (digit < 48 || digit > 57) continue;
-      Integer end = i + 1;
-      while (end < detection.length() && detection.charAt(end) >= 97 && detection.charAt(end) <= 122) end++;
-      if (end > i + 2) {
-        String tail = detection.substring(i + 2, end);
+      Integer runEnd = i + 1;
+      while (runEnd < detection.length() && detection.charAt(runEnd) >= 97 && detection.charAt(runEnd) <= 122) runEnd++;
+      if (runEnd > i + 2) {
+        String tail = detection.substring(i + 2, runEnd);
         if (tail.contains('street') || tail.contains('road') || tail.contains('avenue')) return null;
       }
-      i = end - 1;
+      i = runEnd - 1;
     }
     return source.length() > cap ? source.substring(0, cap) : source;
   }
