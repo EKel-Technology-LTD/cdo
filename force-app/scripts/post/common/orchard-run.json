@@ -6,7 +6,7 @@
       "type": "bash",
       "file": "case-summary-activate.sh",
       "timeoutMinutes": 10,
-      "deploymentEffect": "metadata"
+      "deploymentEffect": "none"
     },
     {
       "id": "verify-case-summary-page",

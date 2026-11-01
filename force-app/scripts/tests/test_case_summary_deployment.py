@@ -40,7 +40,7 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
 
     def test_activation_is_ordinary_post_verification_not_a_build_dependency(self):
         action = self.by_id['activate-case-summary']
-        self.assertEqual('metadata', action['deploymentEffect'])
+        self.assertEqual('none', action['deploymentEffect'])
         self.assertNotIn('metadataBoundary', action)
         self.assertNotIn('reviewPrerequisite', action)
 
@@ -57,13 +57,39 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.assertNotIn("'deploy'", verification)
         self.assertNotIn("'create'", verification)
 
-    def test_activation_uses_retrieved_version_and_relevant_tests(self):
+    def test_template_verification_uses_retrieved_version_without_mutation(self):
         source = embedded_python('case-summary-activate.sh')
         self.assertIn("version=matches[0].findtext('m:versionIdentifier'", source)
-        self.assertIn('if previous!=version:', source)
-        self.assertIn("'--test-level','RunRelevantTests'", source)
-        self.assertIn("verified.findtext('m:activeVersionIdentifier',namespaces=ns)!=version", source)
+        self.assertNotIn("'deploy'", source)
+        self.assertNotIn("'create'", source)
         self.assertIn('satisfies(v,expected_version)', source)
+
+    def test_inactive_template_fails_without_an_activation_write(self):
+        calls = []
+        def fake_sf(args, **kwargs):
+            calls.append(args)
+            if args[1:3] == ['data', 'query']:
+                result = {'records': [{'Id': '00D000000000001EAA', 'IsSandbox': True}]}
+            elif args[1:4] == ['project', 'retrieve', 'start']:
+                folder = Path(args[args.index('--output-dir') + 1])
+                folder.mkdir(parents=True, exist_ok=True)
+                tree = ET.parse(ROOT / (BASE + 'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml'))
+                tree.find('m:activeVersionIdentifier', NS).text = 'synthetic-different-version'
+                tree.write(folder / 'Case_Resolution_Summary.genAiPromptTemplate-meta.xml')
+                result = {'id': 'synthetic-read-receipt'}
+            else:
+                return SimpleNamespace(returncode=1, stdout=json.dumps({'status': 1}))
+            return SimpleNamespace(returncode=0, stdout=json.dumps({'status': 0, 'result': result}))
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(ROOT)
+            with patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as error:
+                    exec(compile(embedded_python('case-summary-activate.sh'), 'template-verification', 'exec'), {})
+            self.assertEqual(1, error.exception.code)
+            self.assertFalse(any(args[1:3] == ['project', 'deploy'] for args in calls))
+        finally:
+            os.chdir(old_cwd)
 
     def test_native_binding_and_mutually_exclusive_permission_gate_remain(self):
         page = ET.parse(ROOT / (BASE + 'flexipages/Case_Record_Page.flexipage-meta.xml'))

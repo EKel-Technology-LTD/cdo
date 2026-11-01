@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # The committed generated active-version identifier makes the page deployable in one batch.
-# Verify/reconcile that exact version after deployment; never invent an identifier.
+# Verify that exact version after deployment without changing the target.
 [[ $# -eq 1 && -n "${ORCHARD_TARGET_ORG:-}" && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target mismatch' >&2; exit 1; }
 python3 - "$1" <<'PY'
 import json, pathlib, subprocess, sys, tempfile, xml.etree.ElementTree as ET
 org=sys.argv[1]
 ns={'m':'http://soap.sforce.com/2006/04/metadata'}
-ET.register_namespace('',ns['m'])
-q=lambda name:'{'+ns['m']+'}'+name
 
 def sf(*args):
     p=subprocess.run(['sf',*args,'--target-org',org,'--json'],capture_output=True,text=True,timeout=180)
@@ -27,10 +25,9 @@ try:
     records=sf('data','query','--query','SELECT Id,IsSandbox FROM Organization')['records']
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
     source=ET.parse('force-app/main/default/genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml').getroot()
-    expected=source.find('m:templateVersions/m:content',ns).text
     with tempfile.TemporaryDirectory(prefix='.case-summary-activation-', dir='.') as temp:
         folder=pathlib.Path(temp)
-        path,root,before=retrieve(folder/'before')
+        _,root,receipt=retrieve(folder/'readback')
         for field in ('developerName','relatedEntity','relatedField','type'):
             if root.findtext('m:'+field,namespaces=ns)!=source.findtext('m:'+field,namespaces=ns): raise RuntimeError('Template identity or field binding mismatch')
         expected_version=source.find('m:templateVersions',ns)
@@ -51,18 +48,8 @@ try:
         version=matches[0].findtext('m:versionIdentifier',namespaces=ns)
 
         if not version: raise RuntimeError('Salesforce has not generated a version identifier')
-        active=root.find('m:activeVersionIdentifier',ns)
-        previous=None if active is None else active.text
-        deployment=None
-        if previous!=version:
-            if active is None: active=ET.Element(q('activeVersionIdentifier'));root.insert(0,active)
-            active.text=version
-            ET.ElementTree(root).write(path,encoding='UTF-8',xml_declaration=True)
-            deployment=sf('project','deploy','start','--source-dir',str(path),'--wait','2','--api-version','67.0','--test-level','RunRelevantTests')
-            if deployment.get('success') is not True or deployment.get('status')!='Succeeded': raise RuntimeError('Activation deployment is not verified; do not replay')
-        _,verified,after=retrieve(folder/'after')
-        if verified.findtext('m:activeVersionIdentifier',namespaces=ns)!=version: raise RuntimeError('Activation readback mismatch')
-        print(json.dumps({'orgId':records[0]['Id'],'template':'Case_Resolution_Summary','previousActiveVersionIdentifier':previous,'activeVersionIdentifier':version,'retrieveId':after.get('id'),'deploymentId':None if deployment is None else deployment.get('id')}))
+        if active_identifier!=version: raise RuntimeError('Pinned source version is not active; inspect the deployment receipt')
+        print(json.dumps({'orgId':records[0]['Id'],'template':'Case_Resolution_Summary','activeVersionIdentifier':version,'retrieveId':receipt.get('id'),'verified':True}))
 except Exception as error:
     print('Case summary activation blocked: '+str(error),file=sys.stderr)
     sys.exit(1)
