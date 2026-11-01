@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Orchard runs this staged action after grounding/template deployment and before the bound page.
-# Use the retrieved generated identifier; never guess a version or change the page binding.
+# The committed generated active-version identifier makes the page deployable in one batch.
+# Verify/reconcile that exact version after deployment; never invent an identifier.
 [[ $# -eq 1 && -n "${ORCHARD_TARGET_ORG:-}" && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target mismatch' >&2; exit 1; }
 python3 - "$1" <<'PY'
 import json, pathlib, subprocess, sys, tempfile, xml.etree.ElementTree as ET
@@ -28,7 +28,7 @@ try:
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
     source=ET.parse('force-app/main/default/genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml').getroot()
     expected=source.find('m:templateVersions/m:content',ns).text
-    with tempfile.TemporaryDirectory(prefix='case-summary-activation-') as temp:
+    with tempfile.TemporaryDirectory(prefix='.case-summary-activation-', dir='.') as temp:
         folder=pathlib.Path(temp)
         path,root,before=retrieve(folder/'before')
         for field in ('developerName','relatedEntity','relatedField','type'):

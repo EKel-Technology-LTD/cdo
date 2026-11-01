@@ -1,12 +1,17 @@
-"""Offline regression checks for the activation-before-page deployment contract.
+"""Offline regression checks for the portable active-template deployment contract.
 
 These inspect the pinned action sources; they do not execute release actions,
 contact Salesforce, or establish deployment/runtime acceptance.
 """
 import ast
+import contextlib
+import io
 import json
+import os
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -24,27 +29,20 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.actions = json.loads((COMMON / 'orchard-run.json').read_text())['actions']
         self.by_id = {action['id']: action for action in self.actions}
 
-    def test_boundary_deploys_grounding_and_template_before_activation(self):
+    def test_template_pins_a_generated_active_version_for_atomic_build(self):
+        template = ET.parse(ROOT / (BASE + 'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml'))
+        versions = template.findall('m:templateVersions', NS)
+        self.assertEqual(1, len(versions))
+        identifier = versions[0].findtext('m:versionIdentifier', namespaces=NS)
+        self.assertTrue(identifier, 'Retrieve the actual Salesforce-generated version before binding the page')
+        self.assertEqual(identifier, template.findtext('m:activeVersionIdentifier', namespaces=NS))
+        self.assertEqual('Published', versions[0].findtext('m:status', namespaces=NS))
+
+    def test_activation_is_ordinary_post_verification_not_a_build_dependency(self):
         action = self.by_id['activate-case-summary']
         self.assertEqual('metadata', action['deploymentEffect'])
-        early = set(action['metadataBoundary']['after'])
-        for path in (
-            'classes/CaseResolutionSummaryGrounding.cls',
-            'classes/CaseResolutionSummaryGroundingTest.cls',
-            'customPermissions/Case_Summary_Generation.customPermission-meta.xml',
-            'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml',
-        ):
-            self.assertIn(BASE + path, early)
+        self.assertNotIn('metadataBoundary', action)
         self.assertNotIn('reviewPrerequisite', action)
-
-    def test_page_and_app_follow_activation(self):
-        boundary = self.by_id['activate-case-summary']['metadataBoundary']
-        self.assertEqual({BASE + 'flexipages/Case_Record_Page.flexipage-meta.xml',
-                          BASE + 'applications/standard__LightningService.app-meta.xml'},
-                         set(boundary['before']))
-        self.assertFalse(set(boundary['after']) & set(boundary['before']))
-        for path in boundary['after'] + boundary['before']:
-            self.assertTrue((ROOT / path).is_file(), path)
 
     def test_readback_is_an_ordinary_post_action_before_assignments(self):
         action = self.by_id['verify-case-summary-page']
@@ -91,6 +89,55 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
             code = embedded_python(action['file'])
             ast.parse(code)
             self.assertIn('IsSandbox', code)
+
+    def test_readback_scripts_keep_cli_output_inside_project(self):
+        # Reproduce Salesforce CLI's OutputDirOutsideProjectError, then execute
+        # the real embedded scripts against synthetic retrieve receipts.
+        def fake_sf(args, **kwargs):
+            if args[1:3] == ['data', 'query']:
+                result = {'records': [{'Id': '00D000000000001EAA', 'IsSandbox': True}]}
+            else:
+                self.assertEqual(['project', 'retrieve', 'start'], args[1:4])
+                folder = Path(args[args.index('--output-dir') + 1]).resolve()
+                if not folder.is_relative_to(ROOT):
+                    return SimpleNamespace(returncode=1, stdout=json.dumps({'status': 1, 'name': 'OutputDirOutsideProjectError'}))
+                metadata = args[args.index('--metadata') + 1]
+                if metadata.startswith('GenAiPromptTemplate:'):
+                    path = 'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml'
+                    tree = ET.parse(ROOT / (BASE + path))
+                    version = tree.find('m:templateVersions', NS)
+                    identifier = version.find('m:versionIdentifier', NS)
+                    if identifier is None:
+                        identifier = ET.SubElement(version, '{' + NS['m'] + '}versionIdentifier')
+                        identifier.text = 'synthetic-test-version'
+                    active = tree.find('m:activeVersionIdentifier', NS)
+                    if active is None:
+                        active = ET.SubElement(tree.getroot(), '{' + NS['m'] + '}activeVersionIdentifier')
+                    active.text = identifier.text
+                else:
+                    self.assertEqual('CustomApplication:standard__LightningService', metadata)
+                    path = 'applications/standard__LightningService.app-meta.xml'
+                    tree = ET.parse(ROOT / (BASE + path))
+                destination = folder / path
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                tree.write(destination)
+                result = {'id': 'synthetic-read-receipt'}
+            return SimpleNamespace(returncode=0, stdout=json.dumps({'status': 0, 'result': result}))
+
+        old_cwd = Path.cwd()
+        try:
+            os.chdir(ROOT)
+            for name in ('case-summary-activate.sh', 'case-summary-verify-page.sh'):
+                with self.subTest(script=name), patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']):
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                        try:
+                            exec(compile(embedded_python(name), name, 'exec'), {})
+                        except SystemExit as error:
+                            self.fail(f'{name} exited {error.code}: {err.getvalue()}')
+                    self.assertIn('orgId', json.loads(out.getvalue()))
+        finally:
+            os.chdir(old_cwd)
 
 
 if __name__ == '__main__':

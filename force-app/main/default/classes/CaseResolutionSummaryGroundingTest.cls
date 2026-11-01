@@ -75,6 +75,11 @@ private class CaseResolutionSummaryGroundingTest {
       )
     );
     Assert.areEqual(
+      '2026-10-01T00:00:00Z',
+      CaseResolutionSummaryGrounding.fact(Datetime.newInstanceGmt(2026, 10, 1, 0, 0, 0))
+    );
+    Assert.areEqual('2024-02-29', CaseResolutionSummaryGrounding.fact(Date.newInstance(2024, 2, 29)));
+    Assert.areEqual(
       '0.00',
       CaseResolutionSummaryGrounding.fact(Decimal.valueOf('0.00'))
     );
@@ -204,7 +209,8 @@ private class CaseResolutionSummaryGroundingTest {
             Technician_Notes__c = '內部測試字串-001'
           )
         );
-      insert orders;
+      // Fixture setup needs write access; the generation persona has read-only repair access.
+      insert as system orders;
       for (Repair_Order__c order : orders)
         Test.setCreatedDate(
           order.Id,
@@ -439,23 +445,24 @@ private class CaseResolutionSummaryGroundingTest {
           new CaseComment(
             ParentId = c.Id,
             IsPublished = true,
-            CommentBody = '評'.repeat(4000)
+            // CaseComment's 4000 limit is bytes, not Unicode characters.
+            CommentBody = 'c'.repeat(4000)
           )
         );
         // Sensitive suffix lies beyond the visible cap. Never accept its prefix.
-        String suffix = '內部測試字串-001';
+        String suffix = 'internal note: synthetic';
         emails.add(
           new EmailMessage(
             ParentId = c.Id,
             Incoming = true,
             Status = '0',
             Subject = 'Synthetic',
-            TextBody = '文'.repeat(emailLength - suffix.length()) + suffix
+            TextBody = 'x'.repeat(emailLength - suffix.length()) + suffix
           )
         );
       }
     }
-    insert repairs;
+    insert as system repairs;
     insert comments;
     insert emails;
     return new List<Case>{
@@ -517,10 +524,10 @@ private class CaseResolutionSummaryGroundingTest {
           'Each omitted email is explicit'
         );
         Assert.isFalse(
-          results[i].Prompt.contains('內部測試字串'),
+          results[i].Prompt.contains('internal note'),
           'No sensitive suffix'
         );
-        Assert.isFalse(results[i].Prompt.contains('文'), 'No unsafe prefix');
+        Assert.isFalse(results[i].Prompt.contains('x'.repeat(100)), 'No unsafe prefix');
       }
       Test.stopTest();
     }

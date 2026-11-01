@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Orchard runs this read-only post action after the remaining page/application metadata.
-# Keep application preservation readback out of the earlier template-activation boundary.
+# Verify the deployed application preserves the committed Case page assignment.
+# Retrieve inside the project: Salesforce CLI rejects external output directories.
 [[ $# -eq 1 && -n "${ORCHARD_TARGET_ORG:-}" && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target mismatch' >&2; exit 1; }
 python3 - "$1" <<'PY'
 import json, pathlib, subprocess, sys, tempfile, xml.etree.ElementTree as ET
@@ -20,7 +20,7 @@ def sf(*args):
 try:
     records=sf('data','query','--query','SELECT Id,IsSandbox FROM Organization')['records']
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
-    with tempfile.TemporaryDirectory(prefix='case-summary-page-readback-') as temp:
+    with tempfile.TemporaryDirectory(prefix='.case-summary-page-readback-', dir='.') as temp:
         folder=pathlib.Path(temp)
         app_receipt=sf('project','retrieve','start','--metadata','CustomApplication:standard__LightningService','--output-dir',str(folder/'application'),'--wait','2','--api-version','67.0')
         apps=list((folder/'application').rglob('standard__LightningService.app-meta.xml'))

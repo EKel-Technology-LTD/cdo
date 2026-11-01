@@ -257,8 +257,7 @@ public with sharing class CaseResolutionSummaryGrounding {
   private static String fact(Object value) {
     if (value == null)
       return null;
-    if (value instanceof Datetime)
-      return ((Datetime) value).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+    // Apex Date also satisfies instanceof Datetime. Check the narrower type first.
     if (value instanceof Date) {
       Date d = (Date) value;
       return String.valueOf(d.year()) +
@@ -267,6 +266,8 @@ public with sharing class CaseResolutionSummaryGrounding {
         '-' +
         String.valueOf(d.day()).leftPad(2, '0');
     }
+    if (value instanceof Datetime)
+      return ((Datetime) value).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
     return String.valueOf(value);
   }
   @TestVisible
