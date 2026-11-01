@@ -26,7 +26,7 @@ try:
     records=sf('data','query','--query','SELECT Id,IsSandbox FROM Organization')['records']
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
     source=ET.parse('force-app/main/default/genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml').getroot()
-    with tempfile.TemporaryDirectory(prefix='.case-summary-activation-', dir='.') as temp:
+    with tempfile.TemporaryDirectory(prefix='case-summary-activation-', dir='.') as temp:
         folder=pathlib.Path(temp)
         _,root,receipt=retrieve(folder/'readback')
         for field in ('developerName','relatedEntity','relatedField','type'):

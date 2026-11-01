@@ -131,6 +131,10 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
                 folder = Path(args[args.index('--output-dir') + 1]).resolve()
                 if not folder.is_relative_to(ROOT):
                     return SimpleNamespace(returncode=1, stdout=json.dumps({'status': 1, 'name': 'OutputDirOutsideProjectError'}))
+                if any(part.startswith('.') for part in folder.relative_to(ROOT).parts):
+                    # CLI conversion filters dot-directory output and reports
+                    # a successful retrieve with no source files.
+                    return SimpleNamespace(returncode=0, stdout=json.dumps({'status': 0, 'result': {'id': 'synthetic-read-receipt', 'files': []}}))
                 metadata = args[args.index('--metadata') + 1]
                 if metadata.startswith('GenAiPromptTemplate:'):
                     path = 'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml'

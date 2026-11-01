@@ -20,7 +20,7 @@ def sf(*args):
 try:
     records=sf('data','query','--query','SELECT Id,IsSandbox FROM Organization')['records']
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
-    with tempfile.TemporaryDirectory(prefix='.case-summary-page-readback-', dir='.') as temp:
+    with tempfile.TemporaryDirectory(prefix='case-summary-page-readback-', dir='.') as temp:
         folder=pathlib.Path(temp)
         # Retrieve into the isolated output directory; never overwrite committed source.
         app_receipt=sf('project','retrieve','start','--metadata','CustomApplication:standard__LightningService','--output-dir',str(folder/'application'),'--ignore-conflicts','--wait','2','--api-version','67.0')
