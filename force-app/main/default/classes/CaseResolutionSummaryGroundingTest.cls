@@ -45,6 +45,35 @@ private class CaseResolutionSummaryGroundingTest {
     Assert.isNull(CaseResolutionSummaryGrounding.safeText(null, 1000));
   }
   @IsTest
+  static void maximumEntryLiteralDetection() {
+    Assert.areEqual(
+      'x'.repeat(1000),
+      CaseResolutionSummaryGrounding.safeText('x'.repeat(32768), 1000)
+    );
+    for (String marker : new List<String>{'internal', 'technician', '姓名', 'instruction', '請輸出'}) {
+      Assert.isNull(
+        CaseResolutionSummaryGrounding.safeText('x'.repeat(32768 - marker.length()) + marker, 1000),
+        'Inspect sensitive literal at the end of the complete maximum-length entry'
+      );
+    }
+  }
+  @IsTest
+  static void maximumEntryPatternBoundaries() {
+    for (String safe : new List<String>{'&'.repeat(32768), '市'.repeat(32768), '123456' + 'a'.repeat(32762), '1street'}) {
+      Assert.isNotNull(CaseResolutionSummaryGrounding.safeText(safe, 1000));
+    }
+    for (String unsafe : new List<String>{
+      'x'.repeat(511) + '市' + 'x'.repeat(30) + '路',
+      'x'.repeat(511) + '&' + 'x'.repeat(20) + ';',
+      'x'.repeat(511) + '%64',
+      '1a' + 'x'.repeat(32760) + 'street',
+      '1streetroad',
+      '12aavenue'
+    }) {
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(unsafe, 1000));
+    }
+  }
+  @IsTest
   static void authorizationRequiresEveryGrant() {
     Assert.isTrue(
       CaseResolutionSummaryGrounding.authorized(true, true, true, true)

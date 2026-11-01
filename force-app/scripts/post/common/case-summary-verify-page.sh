@@ -22,7 +22,8 @@ try:
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
     with tempfile.TemporaryDirectory(prefix='.case-summary-page-readback-', dir='.') as temp:
         folder=pathlib.Path(temp)
-        app_receipt=sf('project','retrieve','start','--metadata','CustomApplication:standard__LightningService','--output-dir',str(folder/'application'),'--wait','2','--api-version','67.0')
+        # Retrieve into the isolated output directory; never overwrite committed source.
+        app_receipt=sf('project','retrieve','start','--metadata','CustomApplication:standard__LightningService','--output-dir',str(folder/'application'),'--ignore-conflicts','--wait','2','--api-version','67.0')
         apps=list((folder/'application').rglob('standard__LightningService.app-meta.xml'))
         if len(apps)!=1: raise RuntimeError('Application readback is incomplete')
         def semantic(element):

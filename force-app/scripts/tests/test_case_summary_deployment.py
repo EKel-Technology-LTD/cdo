@@ -124,6 +124,10 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
                 result = {'records': [{'Id': '00D000000000001EAA', 'IsSandbox': True}]}
             else:
                 self.assertEqual(['project', 'retrieve', 'start'], args[1:4])
+                # Source tracking can report a conflict even for an isolated
+                # output directory after an otherwise successful deployment.
+                if '--ignore-conflicts' not in args:
+                    return SimpleNamespace(returncode=1, stdout=json.dumps({'status': 1, 'name': 'SourceConflictError'}))
                 folder = Path(args[args.index('--output-dir') + 1]).resolve()
                 if not folder.is_relative_to(ROOT):
                     return SimpleNamespace(returncode=1, stdout=json.dumps({'status': 1, 'name': 'OutputDirOutsideProjectError'}))

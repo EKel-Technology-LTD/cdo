@@ -16,7 +16,8 @@ def sf(*args):
     return result['result']
 
 def retrieve(folder):
-    receipt=sf('project','retrieve','start','--metadata','GenAiPromptTemplate:Case_Resolution_Summary','--output-dir',str(folder),'--wait','2','--api-version','67.0')
+    # The isolated output directory preserves source even when tracking reports drift.
+    receipt=sf('project','retrieve','start','--metadata','GenAiPromptTemplate:Case_Resolution_Summary','--output-dir',str(folder),'--ignore-conflicts','--wait','2','--api-version','67.0')
     paths=list(folder.rglob('Case_Resolution_Summary.genAiPromptTemplate-meta.xml'))
     if len(paths)!=1: raise RuntimeError('Expected exactly one retrieved template')
     return paths[0],ET.parse(paths[0]).getroot(),receipt

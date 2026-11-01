@@ -310,27 +310,47 @@ public with sharing class CaseResolutionSummaryGrounding {
     String detection = String.fromCharArray(normalized)
       .toLowerCase()
       .replaceAll('[\\s\\p{Z}]+', '');
+    // Literal alternatives over a full 32K entry exceed Apex's regex budget.
+    // Native searches still inspect the complete normalized entry.
+    for (String marker : new List<String>{
+      '內部','内部','技師','技师','technician','internal','姓名','名字','客戶名','客户名',
+      '聯絡人','联系人','name:','customername','電話','电话','手機','手机','phone','tel:',
+      '地址','住址','address','發票','发票','invoice','身分','身份','passport','身分證',
+      '身份证','ignore','instruction','systemprompt','disclose','reveal','忽略','指令',
+      '提示詞','提示词','洩漏','泄露','請輸出','请输出'
+    }) {
+      if (detection.contains(marker)) return null;
+    }
     if (
-      Pattern.compile('&[^;]{1,20};|%[0-9a-f]{2}').matcher(detection).find() ||
       detection.contains('\\u') ||
       detection.contains('@') ||
       detection.contains('＠') ||
       detection.replaceAll('[^0-9]', '').length() >= 7 ||
       Pattern.compile('[\\p{N}]')
         .matcher(detection.replaceAll('[0-9]', ''))
-        .find() ||
-      Pattern.compile(
-          '內部|内部|技師|技师|technician|internal|姓名|名字|客戶名|客户名|聯絡人|联系人|name:|customername|電話|电话|手機|手机|phone|tel:|地址|住址|address|發票|发票|invoice|身分|身份|passport|身分證|身份证|ignore|instruction|systemprompt|disclose|reveal|忽略|指令|提示詞|提示词|洩漏|泄露|請輸出|请输出'
-        )
-        .matcher(detection)
-        .find() ||
-      Pattern.compile(
-          '[市縣县].{0,30}[路街鄉乡鎮镇區区]|[路街].{0,12}[號号樓楼]|[0-9]+[a-z]+(street|road|avenue)'
-        )
-        .matcher(detection)
         .find()
     )
       return null;
+    // These patterns span at most 32 characters. Overlapping windows preserve
+    // boundary matches while bounding regex work for adversarial long input.
+    Pattern bounded = Pattern.compile('&[^;]{1,20};|%[0-9a-f]{2}|[市縣县].{0,30}[路街鄉乡鎮镇區区]|[路街].{0,12}[號号樓楼]');
+    for (Integer start = 0; start < detection.length(); start += 481) {
+      String window = detection.substring(start, Math.min(start + 512, detection.length()));
+      if (bounded.matcher(window).find()) return null;
+    }
+    // Equivalent to [0-9]+[a-z]+(street|road|avenue), without backtracking.
+    // Each contiguous letter run is inspected once; one leading letter is required.
+    for (Integer i = 0; i + 1 < detection.length(); i++) {
+      Integer digit = detection.charAt(i);
+      if (digit < 48 || digit > 57) continue;
+      Integer end = i + 1;
+      while (end < detection.length() && detection.charAt(end) >= 97 && detection.charAt(end) <= 122) end++;
+      if (end > i + 2) {
+        String tail = detection.substring(i + 2, end);
+        if (tail.contains('street') || tail.contains('road') || tail.contains('avenue')) return null;
+      }
+      i = end - 1;
+    }
     return source.length() > cap ? source.substring(0, cap) : source;
   }
 }
