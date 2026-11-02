@@ -346,7 +346,7 @@ class AcceptanceAssertionContracts(unittest.TestCase):
 
     def test_duplicate_edit_reads_back_original_quarter_and_key(self):
         body = self.policy.split('static void keysCanonicalizeAndRejectCollisions()', 1)[1].split('Sales_Target__c differentLine', 1)[0]
-        self.assertRegex(body, r"Assert\.areEqual\(\s*'Q3',\s*\[SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id\]\.Fiscal_Quarter__c")
+        self.assertRegex(body, r"Assert\.areEqual\(\s*'Q3',\s*\[SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id\]\s*\.Fiscal_Quarter__c")
         self.assertRegex(body, r"Assert\.areEqual\(\s*String.valueOf\(human.Id\) \+ '-2026-Q3-ALL',\s*reload\(other.Id\).Target_Key__c")
 
     def test_rejected_mutex_paths_assert_no_cron_as_well_as_no_batch(self):
@@ -368,10 +368,35 @@ class AcceptanceAssertionContracts(unittest.TestCase):
         }
         for name, methods in mapping.items():
             source = (self.FOLDER / (name + '.cls')).read_text()
-            self.assertRegex(source, r'@IsTest\(testFor=')
+            self.assertRegex(source, r'@IsTest\(\s*testFor=')
             for method in methods:
                 self.assertRegex(source, r'@IsTest\s+static void ' + method + r'\(\)')
             self.assertNotRegex(source, r'(?i)SeeAllData\s*=\s*true')
+
+    def test_fixture_grants_do_not_replace_user_mode_business_writes(self):
+        for name in ('Sales_Target_Manage', 'Discount_Sales_User', 'Product_Catalog_Manage'):
+            self.assertIn("'" + name + "'", self.actuals)
+        self.assertIn("'Sales_Target_Manage'", self.policy)
+        self.assertIn('insert as system grants;', self.actuals)
+        self.assertIn('insert as user targets;', self.actuals)
+        self.assertIn('insert as user row;', self.policy)
+        for source in (self.actuals, self.policy):
+            self.assertIn('WITH USER_MODE', source)
+            self.assertIn('AccessLevel.USER_MODE', source)
+            self.assertNotRegex(source, r'(?i)SeeAllData\s*=\s*true')
+
+    def test_fls_and_validation_are_independent_security_assertions(self):
+        for name in ('userModeProtectedFieldsRemainReadOnly', 'systemModeKeysAreStillCanonicalized'):
+            self.assertRegex(self.policy, r'@IsTest\s+static void ' + name + r'\(\)')
+        for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c', 'Target_Key__c'):
+            self.assertIn("'" + field + "'", self.policy)
+        self.assertIn('Assert.isFalse(access.isCreateable()', self.policy)
+        self.assertIn('Assert.isFalse(access.isUpdateable()', self.policy)
+        self.assertIn('assertUserModeDenied(attemptedInsert, true)', self.policy)
+        self.assertIn('assertUserModeDenied(change, false)', self.policy)
+        self.assertIn('Database.update(clear, false, AccessLevel.SYSTEM_MODE)', self.policy)
+        self.assertIn('Database.insert(row, false, AccessLevel.SYSTEM_MODE)', self.policy)
+        self.assertIn('Database.update(change, false, AccessLevel.SYSTEM_MODE)', self.policy)
 
     def test_both_test_classes_are_package_candidates_with_active_api67_metadata(self):
         # Candidate inclusion only: Orchard's generated payload/selection is not in this repo.

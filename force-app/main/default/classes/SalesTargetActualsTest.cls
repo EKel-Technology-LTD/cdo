@@ -1,5 +1,7 @@
 /** Isolated synthetic acceptance tests; no live migration or schedule activation. */
-@IsTest(testFor='ApexClass:SalesTargetActualsBatch,ApexClass:SalesTargetActualsSchedulable')
+@IsTest(
+  testFor='ApexClass:SalesTargetActualsBatch,ApexClass:SalesTargetActualsSchedulable'
+)
 private with sharing class SalesTargetActualsTest {
   private static final Date TODAY = Date.newInstance(2026, 10, 28);
   @TestSetup
@@ -29,13 +31,61 @@ private with sharing class SalesTargetActualsTest {
         )
       );
     }
-    insert users;
+    // Setup objects are synthetic infrastructure, not business-user operations.
+    insert as system users;
+    // API67 user-mode fixture DML needs the same existing business permission
+    // sets as a real actor. These assignments roll back with the test only.
+    Set<Id> fixtureActors = new Set<Id>{ UserInfo.getUserId(), users[25].Id };
+    Set<String> fixturePermissions = new Set<String>{
+      'Sales_Target_Manage',
+      'Discount_Sales_User',
+      'Product_Catalog_Manage'
+    };
+    Map<Id, Set<Id>> assigned = new Map<Id, Set<Id>>();
+    for (PermissionSetAssignment assignment : [
+      SELECT AssigneeId, PermissionSetId
+      FROM PermissionSetAssignment
+      WHERE AssigneeId IN :fixtureActors
+      WITH SYSTEM_MODE
+    ]) {
+      if (!assigned.containsKey(assignment.AssigneeId))
+        assigned.put(assignment.AssigneeId, new Set<Id>());
+      assigned.get(assignment.AssigneeId).add(assignment.PermissionSetId);
+    }
+    List<PermissionSetAssignment> grants = new List<PermissionSetAssignment>();
+    List<PermissionSet> businessPermissions = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name IN :fixturePermissions
+      WITH SYSTEM_MODE
+    ];
+    Assert.areEqual(
+      3,
+      businessPermissions.size(),
+      'Required fixture permissions exist'
+    );
+    for (Id actor : fixtureActors) {
+      for (PermissionSet permission : businessPermissions) {
+        if (
+          !assigned.containsKey(actor) ||
+          !assigned.get(actor).contains(permission.Id)
+        )
+          grants.add(
+            new PermissionSetAssignment(
+              AssigneeId = actor,
+              PermissionSetId = permission.Id
+            )
+          );
+      }
+    }
+    insert as system grants;
     PermissionSet permission = [
       SELECT Id
       FROM PermissionSet
       WHERE Name = 'Sales_Target_System_Write_Access'
+      WITH SYSTEM_MODE
     ];
-    insert new PermissionSetAssignment(
+    insert as system new PermissionSetAssignment(
       AssigneeId = users[25].Id,
       PermissionSetId = permission.Id
     );
@@ -95,6 +145,7 @@ private with sharing class SalesTargetActualsTest {
         Target_Key__c
       FROM Sales_Target__c
       WHERE Id = :recordId
+      WITH USER_MODE
     ];
   }
   private static SalesTargetActualsBatch batch(Date today) {
@@ -128,8 +179,8 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q3', null),
       target(rep.Id, 2027, 'Q2', null)
     };
-    insert targets;
-    insert new List<Opportunity>{
+    insert as user targets;
+    insert as user new List<Opportunity>{
       opportunity(rep.Id, Date.newInstance(2026, 10, 1), 30000, 'Closed Won'),
       opportunity(rep.Id, TODAY.addDays(-1), 25000, 'Closed Won'),
       opportunity(rep.Id, Date.newInstance(2026, 10, 5), 40000, 'Closed Won'),
@@ -187,7 +238,7 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', 'Air_Purifier')
     };
     targets[0].Target_Amount__c = 20000;
-    insert targets;
+    insert as user targets;
     List<Product2> products = new List<Product2>{
       new Product2(
         Name = 'ST60 WP-RO600',
@@ -203,7 +254,7 @@ private with sharing class SalesTargetActualsTest {
         IsActive = true
       )
     };
-    insert products;
+    insert as user products;
     Id book = Test.getStandardPricebookId();
     List<PricebookEntry> prices = new List<PricebookEntry>{
       new PricebookEntry(
@@ -219,7 +270,7 @@ private with sharing class SalesTargetActualsTest {
         IsActive = true
       )
     };
-    insert prices;
+    insert as user prices;
     Opportunity win = opportunity(
       rep.Id,
       TODAY.addDays(-1),
@@ -227,8 +278,8 @@ private with sharing class SalesTargetActualsTest {
       'Closed Won'
     );
     win.Pricebook2Id = book;
-    insert win;
-    insert new List<OpportunityLineItem>{
+    insert as user win;
+    insert as user new List<OpportunityLineItem>{
       new OpportunityLineItem(
         OpportunityId = win.Id,
         PricebookEntryId = prices[0].Id,
@@ -248,7 +299,7 @@ private with sharing class SalesTargetActualsTest {
       work.execute(null, scope(targets));
       actual(targets[0].Id, 1280, 1);
       actual(targets[1].Id, 360, 1);
-      insert new OpportunityLineItem(
+      insert as user new OpportunityLineItem(
         OpportunityId = win.Id,
         PricebookEntryId = prices[0].Id,
         Quantity = 1,
@@ -266,23 +317,23 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert targets;
+    insert as user targets;
     Opportunity win = opportunity(
       rep.Id,
       Date.newInstance(2026, 10, 2),
       30000,
       'Closed Won'
     );
-    insert win;
+    insert as user win;
     System.runAs(machine) {
       Test.startTest();
       SalesTargetActualsBatch work = batch(TODAY);
       work.execute(null, scope(targets));
       actual(targets[0].Id, 30000, 1);
-      update new Opportunity(Id = win.Id, StageName = 'Negotiation');
+      update as user new Opportunity(Id = win.Id, StageName = 'Negotiation');
       work.execute(null, scope(targets));
       actual(targets[0].Id, 0, 0);
-      update new Opportunity(
+      update as user new Opportunity(
         Id = win.Id,
         StageName = 'Closed Won',
         CloseDate = Date.newInstance(2026, 9, 30)
@@ -297,8 +348,8 @@ private with sharing class SalesTargetActualsTest {
   static void nullAmountCountsAsZero() {
     User rep = person(0), machine = person(25);
     Sales_Target__c row = target(rep.Id, 2026, 'Q4', null);
-    insert row;
-    insert opportunity(rep.Id, TODAY.addDays(-1), null, 'Closed Won');
+    insert as user row;
+    insert as user opportunity(rep.Id, TODAY.addDays(-1), null, 'Closed Won');
     System.runAs(machine) {
       Test.startTest();
       batch(TODAY).execute(null, new List<SObject>{ row });
@@ -314,8 +365,8 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2027, 'Q1', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert targets;
-    insert new List<Opportunity>{
+    insert as user targets;
+    insert as user new List<Opportunity>{
       opportunity(rep.Id, Date.newInstance(2026, 12, 31), 12, 'Closed Won'),
       opportunity(rep.Id, Date.newInstance(2027, 1, 1), 15, 'Closed Won')
     };
@@ -332,7 +383,7 @@ private with sharing class SalesTargetActualsTest {
       work.execute(null, scope(targets));
       actual(targets[0].Id, 12, 1);
       actual(targets[1].Id, 0, 0);
-      update new Sales_Target__c(
+      update as user new Sales_Target__c(
         Id = targets[0].Id,
         Fiscal_Year__c = 2027,
         Fiscal_Quarter__c = 'Q2'
@@ -404,17 +455,18 @@ private with sharing class SalesTargetActualsTest {
   static void inactiveRepStillCalculatesAndReassignmentFails() {
     User rep = person(0), machine = person(25);
     Sales_Target__c row = target(rep.Id, 2026, 'Q4', null);
-    insert row;
-    insert opportunity(rep.Id, TODAY.addDays(-1), 420, 'Closed Won');
+    insert as user row;
+    insert as user opportunity(rep.Id, TODAY.addDays(-1), 420, 'Closed Won');
     System.runAs(machine) {
-      update new User(Id = rep.Id, IsActive = false);
+      update as system new User(Id = rep.Id, IsActive = false);
     }
     System.runAs(machine) {
       Test.startTest();
       batch(TODAY).execute(null, new List<SObject>{ row });
       Database.SaveResult rejected = Database.insert(
         target(rep.Id, 2026, 'Q3', null),
-        false
+        false,
+        AccessLevel.USER_MODE
       );
       Assert.isFalse(
         rejected.isSuccess(),
@@ -450,14 +502,14 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert targets;
+    insert as user targets;
     // Existing Number(6,0) cannot hold one million; a real DML failure tests all-or-none.
     // Use Currency(16,2) overflow instead to avoid fabricating one million opportunities.
     List<Opportunity> wins = new List<Opportunity>{
       opportunity(rep.Id, TODAY.addDays(-1), 90000000000000L, 'Closed Won'),
       opportunity(rep.Id, TODAY.addDays(-1), 90000000000000L, 'Closed Won')
     };
-    insert wins;
+    insert as user wins;
     System.runAs(machine) {
       Test.startTest();
       SalesTargetActualsBatch work = batch(TODAY);
@@ -477,7 +529,7 @@ private with sharing class SalesTargetActualsTest {
       );
       for (Opportunity win : wins)
         win.Amount = 10;
-      update wins;
+      update as user wins;
       work.execute(null, scope(targets));
       Test.stopTest();
     }
@@ -574,7 +626,7 @@ private with sharing class SalesTargetActualsTest {
           target(rep.Id, 2026, i < 7 ? 'Q4' : 'Q3', lines[Math.mod(i, 7)])
         );
     }
-    insert targets;
+    insert as user targets;
     List<Opportunity> wins = new List<Opportunity>();
     for (Integer i = 0; i < 6000; i++)
       wins.add(
@@ -585,7 +637,7 @@ private with sharing class SalesTargetActualsTest {
           'Closed Won'
         )
       );
-    insert wins;
+    insert as user wins;
     wins = null;
     System.runAs(machine) {
       SalesTargetActualsBatch work = batch(TODAY);
@@ -709,7 +761,7 @@ private with sharing class SalesTargetActualsTest {
   @IsTest
   static void wrongTimezoneRejectsLaunch() {
     User machine = person(25);
-    update new User(Id = machine.Id, TimeZoneSidKey = 'GMT');
+    update as system new User(Id = machine.Id, TimeZoneSidKey = 'GMT');
     System.runAs(machine) {
       createMutex(machine.Id);
       Test.startTest();
@@ -742,16 +794,18 @@ private with sharing class SalesTargetActualsTest {
         AND PermissionsModifyAllData = FALSE
         AND PermissionsViewAllData = FALSE
         AND UserLicense.Name = 'Salesforce'
+      WITH SYSTEM_MODE
       LIMIT 1
     ];
-    update new User(Id = machine.Id, ProfileId = restricted.Id);
+    update as system new User(Id = machine.Id, ProfileId = restricted.Id);
     User provisioner = person(24);
     PermissionSet permission = [
       SELECT Id
       FROM PermissionSet
       WHERE Name = 'Sales_Target_System_Write_Access'
+      WITH SYSTEM_MODE
     ];
-    insert new PermissionSetAssignment(
+    insert as system new PermissionSetAssignment(
       AssigneeId = provisioner.Id,
       PermissionSetId = permission.Id
     );

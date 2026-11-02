@@ -1,4 +1,6 @@
-@IsTest(testFor='ApexClass:SalesTargetCurrencyPolicy,ApexTrigger:SalesTargetBeforeSave')
+@IsTest(
+  testFor='ApexClass:SalesTargetCurrencyPolicy,ApexTrigger:SalesTargetBeforeSave'
+)
 private class SalesTargetCurrencyPolicyTest {
   @TestSetup
   static void users() {
@@ -25,13 +27,31 @@ private class SalesTargetCurrencyPolicyTest {
         )
       );
     }
-    insert users;
+    insert as system users;
+    PermissionSet manager = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name = 'Sales_Target_Manage'
+      WITH SYSTEM_MODE
+    ];
+    // Rollback-isolated persona grants; no production assignment or FLS change.
+    insert as system new List<PermissionSetAssignment>{
+      new PermissionSetAssignment(
+        AssigneeId = users[0].Id,
+        PermissionSetId = manager.Id
+      ),
+      new PermissionSetAssignment(
+        AssigneeId = users[1].Id,
+        PermissionSetId = manager.Id
+      )
+    };
     PermissionSet machine = [
       SELECT Id
       FROM PermissionSet
       WHERE Name = 'Sales_Target_System_Write_Access'
+      WITH SYSTEM_MODE
     ];
-    insert new PermissionSetAssignment(
+    insert as system new PermissionSetAssignment(
       AssigneeId = users[1].Id,
       PermissionSetId = machine.Id
     );
@@ -62,6 +82,7 @@ private class SalesTargetCurrencyPolicyTest {
         Target_Amount__c
       FROM Sales_Target__c
       WHERE Id = :recordId
+      WITH USER_MODE
     ];
   }
   private static void blocked(Database.SaveResult result, String message) {
@@ -87,7 +108,7 @@ private class SalesTargetCurrencyPolicyTest {
       for (String quarter : new List<String>{ 'Q1', 'Q2', 'Q3', 'Q4' }) {
         rows.add(target(human.Id, quarter));
       }
-      insert rows;
+      insert as user rows;
       List<Date> starts = new List<Date>{
         Date.newInstance(2026, 1, 1),
         Date.newInstance(2026, 4, 1),
@@ -118,7 +139,7 @@ private class SalesTargetCurrencyPolicyTest {
       }
       Sales_Target__c leap = target(human.Id, 'Q1');
       leap.Fiscal_Year__c = 2028;
-      insert leap;
+      insert as user leap;
       Assert.areEqual(
         Date.newInstance(2028, 3, 31),
         reload(leap.Id).Period_End__c
@@ -153,7 +174,11 @@ private class SalesTargetCurrencyPolicyTest {
         rows.add(row);
       }
       Test.startTest();
-      List<Database.SaveResult> results = Database.insert(rows, false);
+      List<Database.SaveResult> results = Database.insert(
+        rows,
+        false,
+        AccessLevel.USER_MODE
+      );
       Integer queries = Limits.getQueries();
       Test.stopTest();
       Integer successes = 0;
@@ -173,36 +198,44 @@ private class SalesTargetCurrencyPolicyTest {
       Sales_Target__c invalidYear = target(human.Id, 'Q4');
       invalidYear.Fiscal_Year__c = 2031;
       blocked(
-        Database.insert(invalidYear, false),
+        Database.insert(invalidYear, false, AccessLevel.USER_MODE),
         'Year must be between 2025 and 2030.'
       );
       invalidYear = target(human.Id, 'Q4');
       invalidYear.Fiscal_Year__c = 2024;
       blocked(
-        Database.insert(invalidYear, false),
+        Database.insert(invalidYear, false, AccessLevel.USER_MODE),
         'Year must be between 2025 and 2030.'
       );
       Sales_Target__c negative = target(machine.Id, 'Q4');
       negative.Fiscal_Year__c = 2030;
       negative.Target_Amount__c = -1;
       blocked(
-        Database.insert(negative, false),
+        Database.insert(negative, false, AccessLevel.USER_MODE),
         'Target amount must be greater than 0.'
       );
       Sales_Target__c missingRep = target(null, 'Q4');
-      blocked(Database.insert(missingRep, false), 'Sales Rep is required.');
+      blocked(
+        Database.insert(missingRep, false, AccessLevel.USER_MODE),
+        'Sales Rep is required.'
+      );
       Sales_Target__c assigned = target(machine.Id, 'Q4');
       assigned.Fiscal_Year__c = 2030;
-      insert assigned;
+      insert as user assigned;
       blocked(
         Database.update(
           new Sales_Target__c(Id = assigned.Id, Sales_Rep__c = null),
-          false
+          false,
+          AccessLevel.USER_MODE
         ),
         'Sales Rep is required.'
       );
       Sales_Target__c inactive = target(persona('inactive').Id, 'Q4');
-      Database.SaveResult inactiveResult = Database.insert(inactive, false);
+      Database.SaveResult inactiveResult = Database.insert(
+        inactive,
+        false,
+        AccessLevel.USER_MODE
+      );
       Assert.isFalse(
         inactiveResult.isSuccess(),
         'Assignment validation must reject inactive reps'
@@ -212,6 +245,8 @@ private class SalesTargetCurrencyPolicyTest {
 
   @IsTest
   static void protectedFieldsAndMachineAttainment() {
+    // Defense-in-depth test: deliberately reach the validation rule beneath FLS.
+    // The separate userModeProtectedFieldsRemainReadOnly test proves FLS denial.
     User human = persona('human');
     User machine = persona('machine');
     List<String> fields = new List<String>{
@@ -233,17 +268,17 @@ private class SalesTargetCurrencyPolicyTest {
         Sales_Target__c row = target(human.Id, 'Q4');
         row.put(fields[i], values[i]);
         blocked(
-          Database.insert(row, false),
+          Database.insert(row, false, AccessLevel.SYSTEM_MODE),
           'Actuals and target keys can only be changed by the system.'
         );
       }
       saved = target(human.Id, 'Q4');
-      insert saved;
+      insert as user saved;
       for (Integer i = 0; i < fields.size(); i++) {
         Sales_Target__c change = new Sales_Target__c(Id = saved.Id);
         change.put(fields[i], values[i]);
         blocked(
-          Database.update(change, false),
+          Database.update(change, false, AccessLevel.SYSTEM_MODE),
           'Actuals and target keys can only be changed by the system.'
         );
       }
@@ -254,7 +289,7 @@ private class SalesTargetCurrencyPolicyTest {
       );
       Sales_Target__c machineInsert = target(machine.Id, 'Q4');
       machineInsert.Actual_Amount__c = 85000;
-      insert machineInsert;
+      insert as system machineInsert;
       Assert.areEqual(
         'Near Target',
         reload(machineInsert.Id).Attainment_Status__c
@@ -263,7 +298,7 @@ private class SalesTargetCurrencyPolicyTest {
         String.valueOf(machine.Id) + '-2026-Q4-ALL',
         reload(machineInsert.Id).Target_Key__c
       );
-      update new Sales_Target__c(
+      update as system new Sales_Target__c(
         Id = saved.Id,
         Actual_Amount__c = 85000,
         Won_Opportunity_Count__c = 1,
@@ -272,12 +307,21 @@ private class SalesTargetCurrencyPolicyTest {
       );
       Assert.areEqual('Near Target', reload(saved.Id).Attainment_Status__c);
       Assert.areEqual(Decimal.valueOf('85'), reload(saved.Id).Attainment__c);
-      update new Sales_Target__c(Id = saved.Id, Actual_Amount__c = 100000);
+      update as system new Sales_Target__c(
+        Id = saved.Id,
+        Actual_Amount__c = 100000
+      );
       Assert.areEqual('Achieved', reload(saved.Id).Attainment_Status__c);
       Assert.areEqual(Decimal.valueOf('100'), reload(saved.Id).Attainment__c);
-      update new Sales_Target__c(Id = saved.Id, Actual_Amount__c = 79999);
+      update as system new Sales_Target__c(
+        Id = saved.Id,
+        Actual_Amount__c = 79999
+      );
       Assert.areEqual('Behind', reload(saved.Id).Attainment_Status__c);
-      update new Sales_Target__c(Id = saved.Id, Actual_Amount__c = 80000);
+      update as system new Sales_Target__c(
+        Id = saved.Id,
+        Actual_Amount__c = 80000
+      );
       Assert.areEqual('Near Target', reload(saved.Id).Attainment_Status__c);
     }
     System.runAs(human) {
@@ -285,17 +329,17 @@ private class SalesTargetCurrencyPolicyTest {
         Sales_Target__c clear = new Sales_Target__c(Id = saved.Id);
         clear.put(field, null);
         blocked(
-          Database.update(clear, false),
+          Database.update(clear, false, AccessLevel.SYSTEM_MODE),
           'Actuals and target keys can only be changed by the system.'
         );
       }
-      update new Sales_Target__c(
+      update as user new Sales_Target__c(
         Id = saved.Id,
         Notes__c = 'Allowed setup change'
       );
     }
     System.runAs(machine) {
-      update new Sales_Target__c(
+      update as system new Sales_Target__c(
         Id = saved.Id,
         Actual_Amount__c = null,
         Won_Opportunity_Count__c = null,
@@ -314,43 +358,32 @@ private class SalesTargetCurrencyPolicyTest {
     User human = persona('human');
     System.runAs(human) {
       Sales_Target__c row = target(human.Id, 'Q4');
-      row.Target_Key__c = 'tampered';
       Test.startTest();
-      insert row;
+      insert as user row;
       String expected = String.valueOf(human.Id) + '-2026-Q4-ALL';
       Assert.areEqual(
         expected,
         reload(row.Id).Target_Key__c,
         'Flow canonicalizes on create'
       );
-      update new Sales_Target__c(Id = row.Id, Target_Key__c = 'tampered');
-      Assert.areEqual(
-        expected,
-        reload(row.Id).Target_Key__c,
-        'Flow canonicalizes on edit'
-      );
-      update new Sales_Target__c(Id = row.Id, Target_Key__c = null);
-      Assert.areEqual(
-        expected,
-        reload(row.Id).Target_Key__c,
-        'Flow restores cleared key'
-      );
       blocked(
-        Database.insert(target(human.Id, 'Q4'), false),
+        Database.insert(target(human.Id, 'Q4'), false, AccessLevel.USER_MODE),
         'This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.'
       );
       Sales_Target__c other = target(human.Id, 'Q3');
-      insert other;
+      insert as user other;
       blocked(
         Database.update(
           new Sales_Target__c(Id = other.Id, Fiscal_Quarter__c = 'Q4'),
-          false
+          false,
+          AccessLevel.USER_MODE
         ),
         'This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.'
       );
       Assert.areEqual(
         'Q3',
-        [SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id].Fiscal_Quarter__c,
+        [SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id]
+        .Fiscal_Quarter__c,
         'Rejected duplicate edit preserves the original quarter'
       );
       Assert.areEqual(
@@ -360,7 +393,7 @@ private class SalesTargetCurrencyPolicyTest {
       );
       Sales_Target__c differentLine = target(human.Id, 'Q4');
       differentLine.Product_Line__c = 'Dehumidifier';
-      insert differentLine;
+      insert as user differentLine;
       Assert.areEqual(
         String.valueOf(human.Id) + '-2026-Q4-Dehumidifier',
         reload(differentLine.Id).Target_Key__c,
@@ -371,7 +404,8 @@ private class SalesTargetCurrencyPolicyTest {
           target(human.Id, 'Q1'),
           target(human.Id, 'Q1')
         },
-        false
+        false,
+        AccessLevel.USER_MODE
       );
       Integer successes = 0;
       for (Database.SaveResult result : collisions) {
@@ -406,6 +440,121 @@ private class SalesTargetCurrencyPolicyTest {
   }
 
   @IsTest
+  static void userModeProtectedFieldsRemainReadOnly() {
+    System.runAs(persona('human')) {
+      Assert.isFalse(
+        FeatureManagement.checkPermission('Sales_Target_System_Write')
+      );
+      Assert.isTrue(
+        Sales_Target__c.SObjectType.getDescribe().isCreateable(),
+        'Manager can create targets'
+      );
+      Assert.isTrue(
+        Sales_Target__c.Sales_Rep__c.getDescribe().isUpdateable(),
+        'Manager can edit dimensions'
+      );
+      Sales_Target__c saved = target(UserInfo.getUserId(), 'Q4');
+      insert as user saved;
+      Map<String, Object> protectedValues = new Map<String, Object>{
+        'Actual_Amount__c' => Decimal.valueOf('1'),
+        'Won_Opportunity_Count__c' => Decimal.valueOf('1'),
+        'Last_Calculated_At__c' => Datetime.now(),
+        'Target_Key__c' => 'tampered'
+      };
+      Test.startTest();
+      for (String field : protectedValues.keySet()) {
+        Schema.DescribeFieldResult access = Sales_Target__c.SObjectType.getDescribe()
+          .fields.getMap()
+          .get(field)
+          .getDescribe();
+        Assert.isFalse(access.isCreateable(), 'Manager cannot set ' + field);
+        Assert.isFalse(access.isUpdateable(), 'Manager cannot change ' + field);
+        Sales_Target__c attemptedInsert = target(UserInfo.getUserId(), 'Q3');
+        attemptedInsert.put(field, protectedValues.get(field));
+        assertUserModeDenied(attemptedInsert, true);
+        Sales_Target__c change = new Sales_Target__c(Id = saved.Id);
+        change.put(field, protectedValues.get(field));
+        assertUserModeDenied(change, false);
+        change.put(field, null);
+        assertUserModeDenied(change, false);
+      }
+      Test.stopTest();
+      Sales_Target__c unchanged = reload(saved.Id);
+      Assert.isNull(
+        unchanged.Actual_Amount__c,
+        'Denied writes do not change actuals'
+      );
+      Assert.isNull(
+        unchanged.Won_Opportunity_Count__c,
+        'Denied writes do not change counts'
+      );
+      Assert.isNull(
+        unchanged.Last_Calculated_At__c,
+        'Denied writes do not mark fresh'
+      );
+      Assert.areEqual(
+        String.valueOf(UserInfo.getUserId()) + '-2026-Q4-ALL',
+        unchanged.Target_Key__c,
+        'Denied writes preserve key'
+      );
+    }
+  }
+  private static void assertUserModeDenied(
+    Sales_Target__c row,
+    Boolean creating
+  ) {
+    try {
+      if (creating) {
+        insert as user row;
+      } else {
+        update as user row;
+      }
+      Assert.fail('User-mode protected-field write must be denied by FLS');
+    } catch (DmlException ex) {
+      Assert.isTrue(
+        ex.getMessage().contains('inaccessible'),
+        'Expected FLS denial, not a validation-rule substitute: ' +
+        ex.getMessage()
+      );
+    }
+  }
+  @IsTest
+  static void systemModeKeysAreStillCanonicalized() {
+    System.runAs(persona('human')) {
+      Assert.isFalse(
+        FeatureManagement.checkPermission('Sales_Target_System_Write')
+      );
+      Sales_Target__c row = target(UserInfo.getUserId(), 'Q4');
+      row.Target_Key__c = 'tampered';
+      Test.startTest();
+      // Simulate a system-context caller; the Flow must still restore the key.
+      insert as system row;
+      String expected = String.valueOf(UserInfo.getUserId()) + '-2026-Q4-ALL';
+      Assert.areEqual(
+        expected,
+        reload(row.Id).Target_Key__c,
+        'System insert cannot persist an arbitrary key'
+      );
+      update as system new Sales_Target__c(
+        Id = row.Id,
+        Target_Key__c = 'tampered'
+      );
+      Assert.areEqual(
+        expected,
+        reload(row.Id).Target_Key__c,
+        'System update cannot persist an arbitrary key'
+      );
+      update as system new Sales_Target__c(Id = row.Id, Target_Key__c = null);
+      Assert.areEqual(
+        expected,
+        reload(row.Id).Target_Key__c,
+        'System clear is canonicalized'
+      );
+      Test.stopTest();
+    }
+  }
+
+  @IsTest
   static void destinationCurrencyAndQueryCache() {
     User human = persona('human');
     System.runAs(human) {
@@ -422,9 +571,9 @@ private class SalesTargetCurrencyPolicyTest {
         row.put('CurrencyIsoCode', corporate);
       }
       Test.startTest();
-      insert row;
+      insert as user row;
       Integer afterInsert = Limits.getQueries();
-      update new Sales_Target__c(
+      update as user new Sales_Target__c(
         Id = row.Id,
         Notes__c = 'No currency or amount change'
       );
