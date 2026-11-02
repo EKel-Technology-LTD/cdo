@@ -373,17 +373,45 @@ class AcceptanceAssertionContracts(unittest.TestCase):
                 self.assertRegex(source, r'@IsTest\s+static void ' + method + r'\(\)')
             self.assertNotRegex(source, r'(?i)SeeAllData\s*=\s*true')
 
-    def test_fixture_grants_do_not_replace_user_mode_business_writes(self):
+    def test_fixture_setup_is_independent_of_invoking_user_permissions(self):
         for name in ('Sales_Target_Manage', 'Discount_Sales_User', 'Product_Catalog_Manage'):
             self.assertIn("'" + name + "'", self.actuals)
         self.assertIn("'Sales_Target_Manage'", self.policy)
         self.assertIn('insert as system grants;', self.actuals)
-        self.assertIn('insert as user targets;', self.actuals)
+        self.assertIn('Set<Id> fixtureActors = new Set<Id>{ users[25].Id };', self.actuals)
+        self.assertNotIn('UserInfo.getUserId(), users[25].Id', self.actuals)
+        for method in ('allLinesOwnerQuarterAndAttainment',
+                       'lineAmountsCountDistinctAndDoNotUseOpportunityAmount',
+                       'reopenReallocateAndEmptyReset', 'nullAmountCountsAsZero',
+                       'yearRolloverCutoffAndFreshDimensions',
+                       'inactiveRepStillCalculatesAndReassignmentFails',
+                       'failedScopeKeepsOldValuesAndCanRetry',
+                       'volume250Targets6000ClosedOpportunities'):
+            setup = self.actuals.split('static void ' + method + '()', 1)[1].split('System.runAs(machine)', 1)[0]
+            self.assertIn('insert as system', setup, method)
+            self.assertNotIn('insert as user', setup, method)
+        readback = self.actuals.split('private static Sales_Target__c stored(', 1)[1].split('private static SalesTargetActualsBatch batch(', 1)[0]
+        self.assertIn('WITH SYSTEM_MODE', readback)
+        self.assertIn('update as user new Opportunity', self.actuals)
+        self.assertIn('update as user new Sales_Target__c', self.actuals)
+        self.assertIn('WITH USER_MODE', self.policy)
         self.assertIn('insert as user row;', self.policy)
         for source in (self.actuals, self.policy):
-            self.assertIn('WITH USER_MODE', source)
             self.assertIn('AccessLevel.USER_MODE', source)
             self.assertNotRegex(source, r'(?i)SeeAllData\s*=\s*true')
+
+    def test_security_personas_never_inherit_the_invoking_admin_profile(self):
+        setup = self.policy.split('private static User persona(', 1)[0]
+        self.assertIn("Name = 'Minimum Access - Salesforce'", setup)
+        self.assertIn("UserLicense.Name = 'Salesforce'", setup)
+        self.assertIn('PermissionsModifyAllData = FALSE', setup)
+        self.assertIn('PermissionsViewAllData = FALSE', setup)
+        self.assertIn('ProfileId = restricted.Id', setup)
+        self.assertNotIn('UserInfo.getProfileId()', setup)
+        denial = self.policy.split('private static void assertUserModeDenied(', 1)[1].split('@IsTest', 1)[0]
+        self.assertIn('insert as user row;', denial)
+        self.assertIn('update as user row;', denial)
+        self.assertNotIn('as system', denial)
 
     def test_fls_and_validation_are_independent_security_assertions(self):
         for name in ('userModeProtectedFieldsRemainReadOnly', 'systemModeKeysAreStillCanonicalized'):

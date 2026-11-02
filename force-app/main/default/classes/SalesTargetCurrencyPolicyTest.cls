@@ -4,6 +4,19 @@
 private class SalesTargetCurrencyPolicyTest {
   @TestSetup
   static void users() {
+    // Additive permission sets cannot remove administrator FLS. Use the
+    // least-privileged full Salesforce profile; fail rather than fall back.
+    Profile restricted = [
+      SELECT Id
+      FROM Profile
+      WHERE
+        Name = 'Minimum Access - Salesforce'
+        AND UserLicense.Name = 'Salesforce'
+        AND PermissionsModifyAllData = FALSE
+        AND PermissionsViewAllData = FALSE
+      WITH SYSTEM_MODE
+      LIMIT 1
+    ];
     List<User> users = new List<User>();
     for (String role : new List<String>{ 'human', 'machine', 'inactive' }) {
       users.add(
@@ -18,7 +31,7 @@ private class SalesTargetCurrencyPolicyTest {
             '.' +
             DateTime.now().getTime() +
             '@example.invalid',
-          ProfileId = UserInfo.getProfileId(),
+          ProfileId = restricted.Id,
           TimeZoneSidKey = 'America/Los_Angeles',
           LocaleSidKey = 'en_US',
           EmailEncodingKey = 'UTF-8',

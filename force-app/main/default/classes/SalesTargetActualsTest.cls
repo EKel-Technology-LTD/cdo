@@ -1,4 +1,8 @@
-/** Isolated synthetic acceptance tests; no live migration or schedule activation. */
+/**
+ * Isolated synthetic acceptance tests; no live migration or schedule activation.
+ * Positive fixture inserts use SYSTEM_MODE independently of the invoking user.
+ * USER_MODE actor mutations and negative security assertions remain explicit.
+ */
 @IsTest(
   testFor='ApexClass:SalesTargetActualsBatch,ApexClass:SalesTargetActualsSchedulable'
 )
@@ -33,9 +37,9 @@ private with sharing class SalesTargetActualsTest {
     }
     // Setup objects are synthetic infrastructure, not business-user operations.
     insert as system users;
-    // API67 user-mode fixture DML needs the same existing business permission
-    // sets as a real actor. These assignments roll back with the test only.
-    Set<Id> fixtureActors = new Set<Id>{ UserInfo.getUserId(), users[25].Id };
+    // Only the synthetic machine needs business permissions for USER_MODE
+    // mutations below. Never depend on or grant access to the current user.
+    Set<Id> fixtureActors = new Set<Id>{ users[25].Id };
     Set<String> fixturePermissions = new Set<String>{
       'Sales_Target_Manage',
       'Discount_Sales_User',
@@ -133,6 +137,7 @@ private with sharing class SalesTargetActualsTest {
       Discount_Percent__c = 0
     );
   }
+  // Result readback is test infrastructure, not a CRUD/FLS assertion.
   private static Sales_Target__c stored(Id recordId) {
     return [
       SELECT
@@ -145,7 +150,7 @@ private with sharing class SalesTargetActualsTest {
         Target_Key__c
       FROM Sales_Target__c
       WHERE Id = :recordId
-      WITH USER_MODE
+      WITH SYSTEM_MODE
     ];
   }
   private static SalesTargetActualsBatch batch(Date today) {
@@ -179,8 +184,8 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q3', null),
       target(rep.Id, 2027, 'Q2', null)
     };
-    insert as user targets;
-    insert as user new List<Opportunity>{
+    insert as system targets;
+    insert as system new List<Opportunity>{
       opportunity(rep.Id, Date.newInstance(2026, 10, 1), 30000, 'Closed Won'),
       opportunity(rep.Id, TODAY.addDays(-1), 25000, 'Closed Won'),
       opportunity(rep.Id, Date.newInstance(2026, 10, 5), 40000, 'Closed Won'),
@@ -238,7 +243,7 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', 'Air_Purifier')
     };
     targets[0].Target_Amount__c = 20000;
-    insert as user targets;
+    insert as system targets;
     List<Product2> products = new List<Product2>{
       new Product2(
         Name = 'ST60 WP-RO600',
@@ -254,7 +259,7 @@ private with sharing class SalesTargetActualsTest {
         IsActive = true
       )
     };
-    insert as user products;
+    insert as system products;
     Id book = Test.getStandardPricebookId();
     List<PricebookEntry> prices = new List<PricebookEntry>{
       new PricebookEntry(
@@ -270,7 +275,7 @@ private with sharing class SalesTargetActualsTest {
         IsActive = true
       )
     };
-    insert as user prices;
+    insert as system prices;
     Opportunity win = opportunity(
       rep.Id,
       TODAY.addDays(-1),
@@ -278,8 +283,8 @@ private with sharing class SalesTargetActualsTest {
       'Closed Won'
     );
     win.Pricebook2Id = book;
-    insert as user win;
-    insert as user new List<OpportunityLineItem>{
+    insert as system win;
+    insert as system new List<OpportunityLineItem>{
       new OpportunityLineItem(
         OpportunityId = win.Id,
         PricebookEntryId = prices[0].Id,
@@ -317,14 +322,14 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert as user targets;
+    insert as system targets;
     Opportunity win = opportunity(
       rep.Id,
       Date.newInstance(2026, 10, 2),
       30000,
       'Closed Won'
     );
-    insert as user win;
+    insert as system win;
     System.runAs(machine) {
       Test.startTest();
       SalesTargetActualsBatch work = batch(TODAY);
@@ -348,8 +353,8 @@ private with sharing class SalesTargetActualsTest {
   static void nullAmountCountsAsZero() {
     User rep = person(0), machine = person(25);
     Sales_Target__c row = target(rep.Id, 2026, 'Q4', null);
-    insert as user row;
-    insert as user opportunity(rep.Id, TODAY.addDays(-1), null, 'Closed Won');
+    insert as system row;
+    insert as system opportunity(rep.Id, TODAY.addDays(-1), null, 'Closed Won');
     System.runAs(machine) {
       Test.startTest();
       batch(TODAY).execute(null, new List<SObject>{ row });
@@ -365,8 +370,8 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2027, 'Q1', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert as user targets;
-    insert as user new List<Opportunity>{
+    insert as system targets;
+    insert as system new List<Opportunity>{
       opportunity(rep.Id, Date.newInstance(2026, 12, 31), 12, 'Closed Won'),
       opportunity(rep.Id, Date.newInstance(2027, 1, 1), 15, 'Closed Won')
     };
@@ -455,8 +460,8 @@ private with sharing class SalesTargetActualsTest {
   static void inactiveRepStillCalculatesAndReassignmentFails() {
     User rep = person(0), machine = person(25);
     Sales_Target__c row = target(rep.Id, 2026, 'Q4', null);
-    insert as user row;
-    insert as user opportunity(rep.Id, TODAY.addDays(-1), 420, 'Closed Won');
+    insert as system row;
+    insert as system opportunity(rep.Id, TODAY.addDays(-1), 420, 'Closed Won');
     System.runAs(machine) {
       update as system new User(Id = rep.Id, IsActive = false);
     }
@@ -502,14 +507,14 @@ private with sharing class SalesTargetActualsTest {
       target(rep.Id, 2026, 'Q4', null),
       target(rep.Id, 2026, 'Q3', null)
     };
-    insert as user targets;
+    insert as system targets;
     // Existing Number(6,0) cannot hold one million; a real DML failure tests all-or-none.
     // Use Currency(16,2) overflow instead to avoid fabricating one million opportunities.
     List<Opportunity> wins = new List<Opportunity>{
       opportunity(rep.Id, TODAY.addDays(-1), 90000000000000L, 'Closed Won'),
       opportunity(rep.Id, TODAY.addDays(-1), 90000000000000L, 'Closed Won')
     };
-    insert as user wins;
+    insert as system wins;
     System.runAs(machine) {
       Test.startTest();
       SalesTargetActualsBatch work = batch(TODAY);
@@ -626,7 +631,7 @@ private with sharing class SalesTargetActualsTest {
           target(rep.Id, 2026, i < 7 ? 'Q4' : 'Q3', lines[Math.mod(i, 7)])
         );
     }
-    insert as user targets;
+    insert as system targets;
     List<Opportunity> wins = new List<Opportunity>();
     for (Integer i = 0; i < 6000; i++)
       wins.add(
@@ -637,7 +642,7 @@ private with sharing class SalesTargetActualsTest {
           'Closed Won'
         )
       );
-    insert as user wins;
+    insert as system wins;
     wins = null;
     System.runAs(machine) {
       SalesTargetActualsBatch work = batch(TODAY);
@@ -703,6 +708,7 @@ private with sharing class SalesTargetActualsTest {
         Fiscal_Quarter__c,
         Product_Line__c
       FROM Sales_Target__c
+      WITH SYSTEM_MODE
     ];
     Assert.areEqual(250, results.size(), 'Every target survives');
     for (Sales_Target__c row : results) {
