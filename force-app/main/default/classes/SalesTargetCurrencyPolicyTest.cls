@@ -287,6 +287,15 @@ private class SalesTargetCurrencyPolicyTest {
       }
       saved = target(human.Id, 'Q4');
       insert as user saved;
+      // Public Read Only does not let the other minimum-access persona edit.
+      // The synthetic owner shares only this test row; FLS and the custom
+      // permission checks remain independent, and the share rolls back.
+      insert as system new Sales_Target__Share(
+        ParentId = saved.Id,
+        UserOrGroupId = machine.Id,
+        AccessLevel = 'Edit',
+        RowCause = Schema.Sales_Target__Share.RowCause.Manual
+      );
       for (Integer i = 0; i < fields.size(); i++) {
         Sales_Target__c change = new Sales_Target__c(Id = saved.Id);
         change.put(fields[i], values[i]);
