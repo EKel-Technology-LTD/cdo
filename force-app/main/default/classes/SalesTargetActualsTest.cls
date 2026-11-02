@@ -171,6 +171,10 @@ private with sharing class SalesTargetActualsTest {
       'Future remains blank'
     );
     Assert.isNull(
+      stored(targets[2].Id).Won_Opportunity_Count__c,
+      'Future count remains blank, not zero'
+    );
+    Assert.isNull(
       stored(targets[2].Id).Last_Calculated_At__c,
       'Future has no timestamp'
     );
@@ -873,6 +877,16 @@ private with sharing class SalesTargetActualsTest {
         WITH SYSTEM_MODE
       ],
       'No jobs created on rejected paths'
+    );
+    Assert.areEqual(
+      0,
+      [
+        SELECT COUNT()
+        FROM CronTrigger
+        WHERE CronJobDetail.Name = :SalesTargetActualsSchedulable.JOB_NAME
+        WITH SYSTEM_MODE
+      ],
+      'Rejected mutex paths must not register a daily schedule'
     );
   }
   @IsTest

@@ -307,5 +307,91 @@ class ApexSourceContracts(unittest.TestCase):
             self.assertIn(counter,self.tests)
         self.assertNotIn('SeeAllData=true',self.tests)
 
+class AcceptanceAssertionContracts(unittest.TestCase):
+    """Static assertion/discovery guards, not an Apex parser or runner receipt."""
+    FOLDER = ROOT / 'force-app/main/default/classes'
+    MESSAGE = ('This salesperson already has a target for the same quarter and product line. '
+               'Please edit the existing target instead.')
+
+    def setUp(self):
+        self.actuals = (self.FOLDER / 'SalesTargetActualsTest.cls').read_text()
+        self.policy = (self.FOLDER / 'SalesTargetCurrencyPolicyTest.cls').read_text()
+
+    def assert_future_blanks(self, source):
+        for field in ('Actual_Amount__c', 'Won_Opportunity_Count__c', 'Last_Calculated_At__c'):
+            self.assertRegex(source, r'Assert\.isNull\(\s*stored\(targets\[2\]\.Id\)\.' + field + r'\s*,')
+
+    def test_future_target_asserts_all_three_stored_results_blank(self):
+        self.assert_future_blanks(self.actuals)
+
+    def test_future_count_guard_detects_removed_or_zero_assertion(self):
+        # Mutate only in memory; prove this guard rejects the old missing check.
+        check = re.search(r'    Assert\.isNull\(\s*stored\(targets\[2\]\.Id\)\.Won_Opportunity_Count__c,.*?\n    \);', self.actuals, re.S)
+        self.assertIsNotNone(check)
+        for replacement in ('', check.group().replace('Assert.isNull(', 'Assert.isNotNull(')):
+            with self.subTest(replacement=replacement), self.assertRaises(AssertionError):
+                self.assert_future_blanks(self.actuals.replace(check.group(), replacement))
+
+    def test_duplicate_create_and_edit_require_entire_business_message(self):
+        body = self.policy.split('static void keysCanonicalizeAndRejectCollisions()', 1)[1].split('List<Database.SaveResult> collisions', 1)[0]
+        calls = re.findall(r"blocked\(.*?\n      \);", body, re.S)
+        self.assertEqual(2, len(calls))
+        for call in calls:
+            self.assertIn(self.MESSAGE, call)
+        self.assertIn('Database.insert(', calls[0])
+        self.assertIn('Database.update(', calls[1])
+        flow = ET.parse(ROOT / 'force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml')
+        ns = '{http://soap.sforce.com/2006/04/metadata}'
+        self.assertEqual(self.MESSAGE, flow.find('.//' + ns + 'errorMessage').text)
+
+    def test_duplicate_edit_reads_back_original_quarter_and_key(self):
+        body = self.policy.split('static void keysCanonicalizeAndRejectCollisions()', 1)[1].split('Sales_Target__c differentLine', 1)[0]
+        self.assertRegex(body, r"Assert\.areEqual\(\s*'Q3',\s*\[SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id\]\.Fiscal_Quarter__c")
+        self.assertRegex(body, r"Assert\.areEqual\(\s*String.valueOf\(human.Id\) \+ '-2026-Q3-ALL',\s*reload\(other.Id\).Target_Key__c")
+
+    def test_rejected_mutex_paths_assert_no_cron_as_well_as_no_batch(self):
+        body = self.actuals.split('private static void assertMutexEntriesFail()', 1)[1].split('static void singletonKeyRejectsDuplicateAndInvalidRows()', 1)[0]
+        for table in ('AsyncApexJob', 'CronTrigger'):
+            self.assertRegex(body, r'Assert\.areEqual\(\s*0,\s*\[\s*SELECT COUNT\(\)\s*FROM ' + table)
+        self.assertIn('CronJobDetail.Name = :SalesTargetActualsSchedulable.JOB_NAME', body)
+        for method in ('missingMutexBlocksEveryEntryWithoutProvisioning', 'anotherMachineBindingBlocksEveryEntry'):
+            body = self.actuals.split('static void ' + method + '()', 1)[1].split('\n  }', 1)[0]
+            self.assertIn('assertMutexEntriesFail()', body)
+
+    def test_acceptance_methods_are_annotated_not_just_named(self):
+        mapping = {
+            'SalesTargetActualsTest': ('allLinesOwnerQuarterAndAttainment',  # AC1,2,3,8
+                'lineAmountsCountDistinctAndDoNotUseOpportunityAmount',  # AC4
+                'reopenReallocateAndEmptyReset', 'nullAmountCountsAsZero',  # AC5,9
+                'volume250Targets6000ClosedOpportunities'),  # AC10 source only
+            'SalesTargetCurrencyPolicyTest': ('keysCanonicalizeAndRejectCollisions',),  # AC6,7
+        }
+        for name, methods in mapping.items():
+            source = (self.FOLDER / (name + '.cls')).read_text()
+            self.assertRegex(source, r'@IsTest\(testFor=')
+            for method in methods:
+                self.assertRegex(source, r'@IsTest\s+static void ' + method + r'\(\)')
+            self.assertNotRegex(source, r'(?i)SeeAllData\s*=\s*true')
+
+    def test_both_test_classes_are_package_candidates_with_active_api67_metadata(self):
+        # Candidate inclusion only: Orchard's generated payload/selection is not in this repo.
+        from fnmatch import fnmatchcase
+        project = json.loads((ROOT / 'sfdx-project.json').read_text())
+        packages = [p['path'].rstrip('/') + '/' for p in project['packageDirectories']]
+        patterns = [p.strip() for p in (ROOT / '.forceignore').read_text().splitlines()
+                    if p.strip() and not p.lstrip().startswith('#')]
+        for name in ('SalesTargetActualsTest', 'SalesTargetCurrencyPolicyTest'):
+            for suffix in ('.cls', '.cls-meta.xml'):
+                file = self.FOLDER / (name + suffix)
+                path = file.relative_to(ROOT).as_posix()
+                self.assertTrue(file.is_file(), path)
+                self.assertTrue(any(path.startswith(p) for p in packages), path)
+                for pattern in patterns:
+                    self.assertFalse(fnmatchcase(path, pattern), (path, pattern))
+            ns = '{http://soap.sforce.com/2006/04/metadata}'
+            metadata = ET.parse(self.FOLDER / (name + '.cls-meta.xml'))
+            self.assertEqual('Active', metadata.find(ns + 'status').text)
+            self.assertEqual('67.0', metadata.find(ns + 'apiVersion').text)
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

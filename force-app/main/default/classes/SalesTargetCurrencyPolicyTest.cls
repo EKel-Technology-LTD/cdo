@@ -337,7 +337,7 @@ private class SalesTargetCurrencyPolicyTest {
       );
       blocked(
         Database.insert(target(human.Id, 'Q4'), false),
-        'This salesperson already has a target'
+        'This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.'
       );
       Sales_Target__c other = target(human.Id, 'Q3');
       insert other;
@@ -346,7 +346,17 @@ private class SalesTargetCurrencyPolicyTest {
           new Sales_Target__c(Id = other.Id, Fiscal_Quarter__c = 'Q4'),
           false
         ),
-        'This salesperson already has a target'
+        'This salesperson already has a target for the same quarter and product line. Please edit the existing target instead.'
+      );
+      Assert.areEqual(
+        'Q3',
+        [SELECT Fiscal_Quarter__c FROM Sales_Target__c WHERE Id = :other.Id].Fiscal_Quarter__c,
+        'Rejected duplicate edit preserves the original quarter'
+      );
+      Assert.areEqual(
+        String.valueOf(human.Id) + '-2026-Q3-ALL',
+        reload(other.Id).Target_Key__c,
+        'Rejected duplicate edit preserves the original canonical key'
       );
       Sales_Target__c differentLine = target(human.Id, 'Q4');
       differentLine.Product_Line__c = 'Dehumidifier';
