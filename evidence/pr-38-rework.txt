@@ -1,0 +1,30 @@
+PR: https://github.com/EKel-Technology-LTD/cdo/pull/38
+Starting imported revision: edce2fd2939526cb3ae898ecb82e97bf8b345e92
+Branch: feature-cdo-63-case-closure-summary-agent-confirm
+Feedback snapshot: 895f50d3a9555e8e116d4c3af91c93f997ef2e6289dd1537765898e649802c9b
+get_pr_feedback returned headSha=null; starting revision is the host-verified sourceSha, not a separately verified live GitHub head. No Git directory exists; Orchard publishes this rework.
+
+Closure: both required findings (security_permissions and permissions_and_visibility, reviewer run 7ee9ad11-5fba-4dca-8116-e490d5b91bb1) and advisory comment 4452525374 concern Case.AssetId. Added only readable=true, editable=false to existing Case_Resolution_Edit/objectSettings/Case.objectSettings-meta.xml. All prior field grants preserved. Removed synthetic FieldPermissions insertion from CaseResolutionSummaryGroundingTest.agent. The helper now queries the named deployed permission set's grant and asserts exactly one read-only grant, so administrator profile access cannot hide missing metadata. Existing tests cover Cases with and without assets. No production Apex logic changed.
+
+Executed offline checks:
+python3 evidence/pr-38-permission-check.py: PASS; unique read-only grant, missing/unreadable/editable mutation controls, no synthetic FLS shim, required Apex assertions, all source XML parses.
+Original-versus-final XML comparison: PASS; removing only the new AssetId element leaves the original permission XML unchanged.
+orchard-install-sf-test-deps: exit 0, cached locked dependencies installed without changing the lockfile.
+npm --logs-dir /run/orchard-sf-home/npm-logs test -- --runInBand: exit 0; 2 Jest suites and 28 tests passed. These are existing LWC tests, not Apex execution.
+npm --logs-dir /run/orchard-sf-home/npm-logs run lint: exit 0.
+Full and targeted sf project convert source: exit 0 but emitted only package.xml, no converted components. This is incomplete conversion evidence, NOT successful metadata assembly or deploy validation. Generated output removed.
+
+Five invariant lanes, scoped to this remediation diff:
+units_and_scale: source inspection pass; no numeric, date, amount, text-length or production calculation changes.
+boundary_and_null: source inspection pass; existing asset/null handling and all prior boundary tests preserved; helper regression applies to existing with-asset and without-asset test paths. Apex execution pending.
+permissions_and_visibility: offline regression pass; only Case.AssetId read granted, no write, CRUD, sharing or bypass grants. WITH USER_MODE and with sharing retained. Deployed-grant assertion prevents synthetic/profile access masking the gap.
+bulk_and_limits: source inspection pass; production query/DML/heap/batch bounds untouched. One setup-only FieldPermissions query replaces test fixture DML, before Test.startTest; no production loop changed.
+deployment_and_metadata: local XML/decomposition checks pass; existing sourceBehaviorOptions decomposePermissionSetBeta2 and API 67.0 retained. Actual Salesforce compilation, FLS readback, deployment and Apex coverage remain pending PR validation.
+
+Limitations and promotion gates:
+No prepare_build_environment, read_build_org, read_build_metadata, validate_build_source or execute_build_deployment tools were supplied. No org authentication, deployment, Apex execution, access assignment or promotion performed. No additional approved design/acceptance records were available through supplied tools; this is closure of the authoritative scoped PR findings, not full feature acceptance. QA must exercise the generation persona with Case_Summary_Generation, Case_Resolution_Edit, Repair_Order_Read, Asset_Warranty_Read and Product_Catalog_Read, including cases without assets. Normal CI, review, QA and release gates remain required.
+
+References applied:
+salesforce-delivery SKILL.md sha256 7c64e2ddd6c7405f0be1ba7ac05d8792d64c2470a7abcc7a558f0d2213228e5a; release reference sha256 ce6631adb37bffdf9f458502c4cc89e1bf610c7ac4e8576a6f6b962ff4fc8d1b. Guidance names Winter '27/API 68; project remains API 67 (Summer '26 compatibility); target release unverified.
+orchard-solution-audit pinned commit 81676ebdc09e614d7de516cf12a0ff7ee4f74389.
+Salesforce Skills page p_319e6bc859ee80320e6ab51e, platform-permission-set-generate; wiki revision b294e294c25782492ab891cc9b63cbe0d20bd588; pinned upstream 625863fbdee9cf4647cc964ccf6ea99b71373a83. Applied explicit least-privilege field permissions and duplicate checks, using repository decomposition. Target-org field metadata not retrievable in this run; reviewer finding and existing test fixture identify the optional lookup.

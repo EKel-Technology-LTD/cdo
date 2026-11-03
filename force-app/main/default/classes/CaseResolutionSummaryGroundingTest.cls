@@ -169,14 +169,15 @@ private class CaseResolutionSummaryGroundingTest {
       );
     }
     insert assignments;
-    // Case.AssetId is optional FLS and is not granted by the existing closure set.
-    insert new FieldPermissions(
-      ParentId = gate.Id,
-      SobjectType = 'Case',
-      Field = 'Case.AssetId',
-      PermissionsRead = true,
-      PermissionsEdit = true
-    );
+    // Check the deployed grant, not profile access or a synthetic FLS shim.
+    List<FieldPermissions> assetGrants = [
+      SELECT PermissionsRead, PermissionsEdit
+      FROM FieldPermissions
+      WHERE Parent.Name = 'Case_Resolution_Edit' AND Field = 'Case.AssetId'
+    ];
+    Assert.areEqual(1, assetGrants.size(), 'Ship the Case.AssetId grant');
+    Assert.isTrue(assetGrants[0].PermissionsRead, 'Grounding needs lookup read access');
+    Assert.isFalse(assetGrants[0].PermissionsEdit, 'Grounding does not need lookup edit access');
     return u;
   }
   private static CaseResolutionSummaryGrounding.Request request(Case c) {
