@@ -338,15 +338,15 @@ public with sharing class CaseResolutionSummaryGrounding {
       String window = detection.substring(start, Math.min(start + 512, detection.length()));
       if (bounded.matcher(window).find()) return null;
     }
-    // Equivalent to [0-9]+[a-z]+(street|road|avenue), without backtracking.
-    // Each contiguous letter run is inspected once; one leading letter is required.
+    // Inspect each complete letter run after a number, without backtracking.
+    // A street suffix may start immediately after the number (for example 12 Avenue).
     for (Integer i = 0; i + 1 < detection.length(); i++) {
       Integer digit = detection.charAt(i);
       if (digit < 48 || digit > 57) continue;
       Integer runEnd = i + 1;
       while (runEnd < detection.length() && detection.charAt(runEnd) >= 97 && detection.charAt(runEnd) <= 122) runEnd++;
-      if (runEnd > i + 2) {
-        String tail = detection.substring(i + 2, runEnd);
+      if (runEnd > i + 1) {
+        String tail = detection.substring(i + 1, runEnd);
         if (tail.contains('street') || tail.contains('road') || tail.contains('avenue')) return null;
       }
       i = runEnd - 1;

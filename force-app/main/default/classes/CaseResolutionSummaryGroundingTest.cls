@@ -59,7 +59,7 @@ private class CaseResolutionSummaryGroundingTest {
   }
   @IsTest
   static void maximumEntryPatternBoundaries() {
-    for (String safe : new List<String>{'&'.repeat(32768), '市'.repeat(32768), '123456' + 'a'.repeat(32762), '1street'}) {
+    for (String safe : new List<String>{'&'.repeat(32768), '市'.repeat(32768), '123456' + 'a'.repeat(32762)}) {
       Assert.isNotNull(CaseResolutionSummaryGrounding.safeText(safe, 1000));
     }
     for (String unsafe : new List<String>{
@@ -71,6 +71,23 @@ private class CaseResolutionSummaryGroundingTest {
       '12aavenue'
     }) {
       Assert.isNull(CaseResolutionSummaryGrounding.safeText(unsafe, 1000));
+    }
+  }
+  @IsTest
+  static void streetSuffixAtStartOfLetterRunIsOmitted() {
+    for (String address : new List<String>{
+      '12 Avenue', '12 Road', '12 Street', '1street',
+      '12th Avenue', '12 Main Street', '12aavenue',
+      '１２ Ａｖｅｎｕｅ', '12 A\u200Bvenue'
+    }) {
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(address, 1000),
+        'Omit address-shaped text, including a suffix immediately after the number');
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(
+        'x'.repeat(32768 - address.length()) + address, 1000),
+        'Inspect address-shaped text beyond the returned prefix at the size limit');
+    }
+    for (String safe : new List<String>{'12 motors repaired', 'Avenue motor repaired', '12rd'}) {
+      Assert.areEqual(safe, CaseResolutionSummaryGrounding.safeText(safe, 1000));
     }
   }
   @IsTest
