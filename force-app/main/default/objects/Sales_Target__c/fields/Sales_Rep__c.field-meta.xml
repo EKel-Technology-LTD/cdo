@@ -3,15 +3,6 @@
     <fullName>Sales_Rep__c</fullName>
     <inlineHelpText>Choose an active user.</inlineHelpText>
     <label>Sales Rep</label>
-    <lookupFilter>
-        <active>true</active>
-        <filterItems>
-            <field>User.IsActive</field>
-            <operation>equals</operation>
-            <value>true</value>
-        </filterItems>
-        <isOptional>false</isOptional>
-    </lookupFilter>
     <referenceTo>User</referenceTo>
     <relationshipLabel>Sales Quarterly Targets</relationshipLabel>
     <relationshipName>Sales_Quarterly_Targets</relationshipName>

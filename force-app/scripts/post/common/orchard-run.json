@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "sales-target-preflight",
+      "type": "bash",
+      "file": "sales-target-preflight.sh",
+      "timeoutMinutes": 10,
+      "scopeMode": "selected_delivery",
+      "deploymentEffect": "data",
+      "metadataBoundary": {
+        "after": [
+          "force-app/main/default/objects/Sales_Target_Mutex__c/Sales_Target_Mutex__c.object-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/fields/Lock_Key__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/fields/Machine_User__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/validationRules/System_Only_Singleton.validationRule-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml"
+        ],
+        "before": [
+          "force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml",
+          "force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml"
+        ]
+      },
+      "releaseInputs": {
+        "authorizationToken": "SALES_TARGET_AUTHORIZATION",
+        "machineAuthToken": "SALES_TARGET_MACHINE_AUTH",
+        "contextFileEnv": "SALES_TARGET_RELEASE_CONTEXT",
+        "machineOrgEnv": "SALES_TARGET_MACHINE_ORG"
+      }
+    },
+    {
+      "id": "sales-target-activate",
+      "type": "bash",
+      "file": "sales-target-activate.sh",
+      "timeoutMinutes": 10,
+      "scopeMode": "selected_delivery",
+      "deploymentEffect": "data",
+      "releaseInputs": {
+        "authorizationToken": "SALES_TARGET_AUTHORIZATION",
+        "machineAuthToken": "SALES_TARGET_MACHINE_AUTH",
+        "contextFileEnv": "SALES_TARGET_RELEASE_CONTEXT",
+        "machineOrgEnv": "SALES_TARGET_MACHINE_ORG"
+      }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>System_Only_Singleton</fullName>
+    <active>true</active>
+    <description
+  >No object permissions are granted. Authorized system provisioning must supply the exact singleton key and machine binding; changing the binding requires a separately approved operation.</description>
+    <errorConditionFormula
+  >OR(NOT($Permission.Sales_Target_System_Write), Lock_Key__c &lt;&gt; "DAILY_ACTUALS", ISBLANK(Machine_User__c))</errorConditionFormula>
+    <errorMessage
+  >A system-authorized DAILY_ACTUALS mutex with a designated machine is required.</errorMessage>
+</ValidationRule>
