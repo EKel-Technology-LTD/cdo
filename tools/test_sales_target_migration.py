@@ -18,7 +18,7 @@ body = SOURCE.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
 parsed = ast.parse(body)
 # Load only declarations needed by pure tests, not the action's execution block.
 names = {'GateError', 'require', 'sfid', 'canonical', 'audit_keys', 'period',
-         'previous_quarter', 'parse_expiry', 'check_window', 'formula_matches',
+         'previous_quarter', 'salesforce_timestamp', 'parse_expiry', 'check_window', 'formula_matches',
          'verify_sales_rep_metadata', 'unique_json_object', 'validate_authorization',
          'verify_authorized_org', 'verify_machine_actor', 'load_release_inputs'}
 nodes = [n for n in parsed.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in names]
@@ -303,6 +303,11 @@ class AuthorizationGuards(unittest.TestCase):
                 with self.assertRaises(ns['GateError']):
                     scope['verify_hierarchy_evidence'](dict(context, machineUserId=machine))
 
+    def test_utc_expiry_preserves_fractional_seconds(self):
+        value = ns['parse_expiry']('2026-11-07T22:00:00.5Z')
+        self.assertEqual(500000, value.microsecond)
+        self.assertEqual(dt.timedelta(0), value.utcoffset())
+
     def test_exact_authorization_accepted_without_mutating_input(self):
         original = self.authorization()
         validated = self.validate(original)
@@ -367,7 +372,7 @@ class AuthorizationGuards(unittest.TestCase):
                 self.validate(self.authorization(expiresAt=value))
 
     def test_invalid_calendar_expiry_rejected(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ns['GateError'], 'Invalid Salesforce timestamp'):
             self.validate(self.authorization(expiresAt='2026-02-30T20:00:00Z'))
 
     def test_target_mismatch_rejected(self):
