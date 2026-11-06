@@ -303,6 +303,11 @@ class AuthorizationGuards(unittest.TestCase):
                 with self.assertRaises(ns['GateError']):
                     scope['verify_hierarchy_evidence'](dict(context, machineUserId=machine))
 
+    def test_utc_expiry_preserves_fractional_seconds(self):
+        value = ns['parse_expiry']('2026-11-07T22:00:00.5Z')
+        self.assertEqual(500000, value.microsecond)
+        self.assertEqual(dt.timedelta(0), value.utcoffset())
+
     def test_exact_authorization_accepted_without_mutating_input(self):
         original = self.authorization()
         validated = self.validate(original)
@@ -367,7 +372,7 @@ class AuthorizationGuards(unittest.TestCase):
                 self.validate(self.authorization(expiresAt=value))
 
     def test_invalid_calendar_expiry_rejected(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ns['GateError'], 'Invalid Salesforce timestamp'):
             self.validate(self.authorization(expiresAt='2026-02-30T20:00:00Z'))
 
     def test_target_mismatch_rejected(self):
