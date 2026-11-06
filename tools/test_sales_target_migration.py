@@ -18,7 +18,7 @@ body = SOURCE.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
 parsed = ast.parse(body)
 # Load only declarations needed by pure tests, not the action's execution block.
 names = {'GateError', 'require', 'sfid', 'canonical', 'audit_keys', 'period',
-         'previous_quarter', 'parse_expiry', 'check_window', 'formula_matches',
+         'previous_quarter', 'salesforce_timestamp', 'parse_expiry', 'check_window', 'formula_matches',
          'verify_sales_rep_metadata', 'unique_json_object', 'validate_authorization',
          'verify_authorized_org', 'verify_machine_actor', 'load_release_inputs'}
 nodes = [n for n in parsed.body if isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name in names]

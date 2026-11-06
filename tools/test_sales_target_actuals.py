@@ -31,7 +31,7 @@ def namespace():
 def job(**changes):
     row = dict(Id=JOB, OwnerId=USER, TimeZoneSidKey='America/Los_Angeles',
                CronExpression='0 0 2 * * ?', State='WAITING',
-               NextFireTime=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).isoformat())
+               NextFireTime=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%S.000%z'))
     row.update(changes)
     return row
 

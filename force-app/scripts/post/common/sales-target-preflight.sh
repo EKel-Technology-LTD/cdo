@@ -172,6 +172,15 @@ def verify_authorized_org(context, observed):
     require(isinstance(observed, dict) and observed.get('Id') == context['orgId'] and observed.get('IsSandbox') is True,
             'Target is not the authorized nonproduction org')
 
+def salesforce_timestamp(value):
+    # Salesforce returns UTC offsets such as +0000. Python 3.10's
+    # fromisoformat does not accept those or Z; strptime's %z accepts both.
+    try:
+        fmt = '%Y-%m-%dT%H:%M:%S.%f%z' if '.' in value else '%Y-%m-%dT%H:%M:%S%z'
+        return dt.datetime.strptime(value, fmt)
+    except (ValueError, TypeError):
+        raise GateError('Invalid Salesforce timestamp')
+
 def verify_hierarchy_evidence(context):
     # A private Salesforce File contains the owner's retained observation. The
     # release runner only reads it, through the already authenticated target.
@@ -198,17 +207,8 @@ def verify_hierarchy_evidence(context):
             and proof.get('grantAccessUsingHierarchies') is False
             and parse_expiry(proof.get('expiresAt')) == context['expiresAt'],
             'Hierarchy evidence must verify disabled access for this mutex, org, revision and release window')
-    def timestamp(value):
-        # Salesforce returns UTC offsets such as +0000. Python 3.10's
-        # fromisoformat does not accept those or Z; strptime's %z accepts both.
-        try:
-            fmt = '%Y-%m-%dT%H:%M:%S.%f%z' if '.' in value else '%Y-%m-%dT%H:%M:%S%z'
-            return dt.datetime.strptime(value, fmt)
-        except (ValueError, TypeError):
-            raise GateError('Could not verify the hierarchy evidence timestamp')
-
-    installed_at = timestamp(mutex['CreatedDate'])
-    require(all(timestamp(file[field]) >= installed_at for field in ('CreatedDate', 'LastModifiedDate')),
+    installed_at = salesforce_timestamp(mutex['CreatedDate'])
+    require(all(salesforce_timestamp(file[field]) >= installed_at for field in ('CreatedDate', 'LastModifiedDate')),
             'Hierarchy verification must be recorded after installing the mutex object in this sandbox')
     emit('hierarchy_evidence_verified', versionId=file['Id'], verifier=owner, recordedAt=file['LastModifiedDate'])
 
