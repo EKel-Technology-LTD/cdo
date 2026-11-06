@@ -38,4 +38,4 @@ Use this JSON in the file description, substituting the exact values from the re
 }
 ```
 
-Both the backfill and the scheduler read this owner attestation before their first write. The release receipt records the Salesforce file version, verifier and timestamp. If evidence is unavailable or mismatched, check the setting and file in the target and resume through the approved release workflow.
+Both the backfill and the activation deployment action read this owner attestation before their first write. After its protection/key/currency audits, activation registers the native daily 02:00 America/Los_Angeles actuals job as the separately authenticated machine. It reuses only an exactly matching healthy job, verifies the CronTrigger and Apex class/owner binding, and records the schedule ID; conflicting jobs block activation without being replaced. The recurring Apex job does not read release files or execute deployment scripts. The release receipt records the Salesforce file version, verifier and timestamp. If evidence is unavailable or mismatched, check the setting and file in the target and resume through the approved release workflow.

@@ -1,4 +1,4 @@
-/** Customer-managed dispatcher. The scheduling identity must be the authorized machine. */
+/** Machine-owned daily dispatcher. The scheduling identity must be the authorized machine. */
 public with sharing class SalesTargetActualsSchedulable implements Schedulable {
   public static final String CRON = '0 0 2 * * ?';
   public static final String JOB_NAME = 'Sales Target Daily Actuals';
@@ -85,8 +85,8 @@ public with sharing class SalesTargetActualsSchedulable implements Schedulable {
     return Database.executeBatch(new SalesTargetActualsBatch(), 25);
   }
   /**
-   * Optional operator helper for a fixed daily 02:00 Los Angeles schedule.
-   * Deployment never invokes this helper. Concurrent callers serialize
+   * Release registration helper for a fixed daily 02:00 Los Angeles schedule.
+   * Deployment verifies existing jobs before invoking this helper. Concurrent callers serialize
    * with launch/recovery and stop; existing schedules must be read back, not
    * silently replaced. No persistent mutex provisioning occurs here.
    * @return the new machine-owned CronTrigger ID

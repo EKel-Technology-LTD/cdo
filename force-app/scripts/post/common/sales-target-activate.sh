@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Orchard action runner only. Verifies installed protections and migrated keys. End users maintain business schedules in Salesforce.
+# Orchard action runner only. Verifies protections/keys and registers the machine-owned daily Apex job.
 # No permission assignment, migration, metadata deployment or automatic writer resume.
 # MANDATORY RELEASE PREREQUISITE (separately VERIFIED, never inferred):
 # Before any persistent mutex-record provisioning OR activation, the release owner
@@ -308,6 +308,44 @@ def audit_currencies(rows, today):
             bad = system_query('SELECT Id FROM OpportunityLineItem WHERE (' + ' OR '.join(line_conditions) + ') AND (CurrencyIsoCode != ' + quote(CORPORATE) + ' OR Opportunity.CurrencyIsoCode != ' + quote(CORPORATE) + ') LIMIT 1')
             require(not bad, 'Foreign eligible opportunity/product-line currency; conversion is out of scope')
 
+def actuals_schedules():
+    bindings = system_query("SELECT CronTriggerId,ApexClass.Name,CreatedById FROM AsyncApexJob WHERE JobType = 'ScheduledApex' AND ApexClass.Name = 'SalesTargetActualsSchedulable'")
+    require(isinstance(bindings, list), 'Malformed scheduler bindings')
+    ids = {sfid(b.get('CronTriggerId')) for b in bindings if b.get('CronTriggerId')}
+    condition = "CronJobDetail.Name = 'Sales Target Daily Actuals'"
+    if ids:
+        condition += ' OR Id IN (' + ','.join(quote(i) for i in sorted(ids)) + ')'
+    jobs = system_query("SELECT Id,OwnerId,CronExpression,TimeZoneSidKey,State,NextFireTime,CronJobDetail.Name FROM CronTrigger WHERE (" + condition + ") AND State NOT IN ('DELETED','COMPLETE')")
+    require(isinstance(jobs, list), 'Malformed schedule readback')
+    return jobs
+
+def verify_actuals_schedule(jobs, expected=None):
+    job = one(jobs, 'active actuals schedule')
+    cron_id = sfid(job.get('Id'))
+    require(expected is None or cron_id == expected, 'Schedule readback ID differs')
+    require(job.get('OwnerId') == USER and job.get('CronExpression') == '0 0 2 * * ?'
+            and job.get('TimeZoneSidKey') == 'America/Los_Angeles'
+            and (job.get('CronJobDetail') or {}).get('Name') == 'Sales Target Daily Actuals'
+            and job.get('State') in ('WAITING', 'ACQUIRED', 'EXECUTING')
+            and job.get('NextFireTime') is not None, 'Existing schedule differs or is unhealthy; no replacement authorized')
+    require(salesforce_timestamp(job['NextFireTime']) > dt.datetime.now(dt.timezone.utc), 'Next actuals execution is not in the future')
+    bindings = system_query("SELECT ApexClass.Name,CreatedById FROM AsyncApexJob WHERE JobType = 'ScheduledApex' AND CronTriggerId = " + quote(cron_id))
+    require(isinstance(bindings, list) and bindings and all(
+        b.get('CreatedById') == USER and (b.get('ApexClass') or {}).get('Name') == 'SalesTargetActualsSchedulable'
+        for b in bindings), 'Schedule class or machine binding is unverified')
+    return cron_id
+
+def ensure_actuals_schedule():
+    locks = system_query("SELECT Machine_User__c FROM Sales_Target_Mutex__c WHERE Lock_Key__c = 'DAILY_ACTUALS'")
+    require(one(locks, 'provisioned actuals mutex').get('Machine_User__c') == USER, 'Mutex is not bound to the authorized machine')
+    jobs = actuals_schedules()
+    if jobs:
+        return verify_actuals_schedule(jobs)
+    # The native helper locks the mutex and rechecks duplicates atomically.
+    # Never retry an uncertain write or abort/replace an existing job.
+    created = apex("Id jobId = SalesTargetActualsSchedulable.createOwnedSchedule(); System.debug(LoggingLevel.ERROR, 'ST_PREFLIGHT:' + JSON.serialize(jobId));")
+    return verify_actuals_schedule(actuals_schedules(), sfid(created))
+
 def verify_sales_rep_metadata(metadata, user_describe):
     require(isinstance(metadata, dict), 'Missing Sales Rep metadata')
     expected = {'type': 'Lookup', 'referenceTo': 'User', 'label': 'Sales Rep',
@@ -384,7 +422,8 @@ try:
     require({r['Id']:canonical(r) for r in before} == {r['Id']:canonical(r) for r in after} and not audit_keys(after), 'Targets changed during activation quiescence')
     audit_currencies(after, today)
     check_window()
-    emit('activation_verified', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, approvalReference=CONTEXT['approvalReference'], flowVersionId=flow_version, targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, resume='Authorized operations owner may now end the approved write-quiescence window; this action does not change access or maintenance controls.')
+    schedule_id = ensure_actuals_schedule()
+    emit('activation_verified', scheduleId=schedule_id, orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, approvalReference=CONTEXT['approvalReference'], flowVersionId=flow_version, targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, resume='Authorized operations owner may now end the approved write-quiescence window; this action does not change access or maintenance controls.')
 except (GateError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, OSError) as exc:
     emit('blocked', reason=str(exc) if isinstance(exc, GateError) else type(exc).__name__, writesRemainQuiesced=True, retry='Correct the reported release prerequisite and rerun verification within an approved window.')
     sys.exit(1)

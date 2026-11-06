@@ -39,7 +39,7 @@ class ActivationContract(unittest.TestCase):
         action=next(a for a in actions if a['id']=='sales-target-activate')
         self.assertEqual('bash',action['type'])
         self.assertEqual('sales-target-activate.sh',action['file'])
-        self.assertEqual('none',action['deploymentEffect'])
+        self.assertEqual('data',action['deploymentEffect'])
         self.assertEqual('selected_delivery',action['scopeMode'])
         self.assertEqual(10,action['timeoutMinutes'])
         self.assertNotIn('metadataBoundary',action)
@@ -65,12 +65,79 @@ class ActivationContract(unittest.TestCase):
         self.assertIn('writesRemainQuiesced=True',BODY)
         self.assertIn('load_release_inputs()',BODY)
 
-    def test_deployment_leaves_business_schedules_to_users(self):
-        for script in (ROOT/'force-app/scripts').rglob('*'):
-            if script.suffix in {'.sh','.apex'}:
-                self.assertNotRegex(script.read_text(), r'(?i)\b(?:CronTrigger|ScheduledApex|createOwnedSchedule|stopOwnedSchedule|System\s*\.\s*(?:schedule|scheduleBatch|abortJob))\b',script)
-        self.assertIn('flow_version = verify_active_flow()', BODY)
-        self.assertIn('audit_keys(after)', BODY)
+    def test_registration_follows_audits_and_precedes_success(self):
+        main = BODY.split('try:\n    CONTEXT, MACHINE', 1)[1]
+        self.assertLess(main.index('audit_currencies(after, today)'), main.index('ensure_actuals_schedule()'))
+        self.assertLess(main.index('ensure_actuals_schedule()'), main.index("emit('activation_verified'"))
+        self.assertIn('scheduleId=schedule_id', main)
+        self.assertIn("cli(['apex', 'run', '--file', '/dev/stdin'], MACHINE", BODY)
+        self.assertNotIn('System.abortJob', BODY)
+
+    def schedule(self, **changes):
+        return dict(dict(Id='08e000000000001AAA', OwnerId=USER,
+            CronExpression='0 0 2 * * ?', TimeZoneSidKey='America/Los_Angeles',
+            State='WAITING', NextFireTime='2099-01-01T10:00:00.000+0000',
+            CronJobDetail=dict(Name='Sales Target Daily Actuals')), **changes)
+
+    def binding(self, **changes):
+        return dict(dict(ApexClass=dict(Name='SalesTargetActualsSchedulable'), CreatedById=USER), **changes)
+
+    def test_matching_schedule_is_reused_without_write(self):
+        self.ns['system_query'] = Mock(side_effect=[[dict(Machine_User__c=USER)], [self.binding()]])
+        self.ns['actuals_schedules'] = Mock(return_value=[self.schedule()])
+        self.ns['apex'] = Mock()
+        self.assertEqual(self.schedule()['Id'], self.ns['ensure_actuals_schedule']())
+        self.ns['apex'].assert_not_called()
+
+    def test_missing_schedule_created_once_and_exact_id_read_back(self):
+        self.ns['system_query'] = Mock(side_effect=[[dict(Machine_User__c=USER)], [self.binding()]])
+        self.ns['actuals_schedules'] = Mock(side_effect=[[], [self.schedule()]])
+        self.ns['apex'] = Mock(return_value=self.schedule()['Id'])
+        self.assertEqual(self.schedule()['Id'], self.ns['ensure_actuals_schedule']())
+        self.ns['apex'].assert_called_once()
+        self.assertIn('SalesTargetActualsSchedulable.createOwnedSchedule()', self.ns['apex'].call_args.args[0])
+        self.assertEqual(2, self.ns['actuals_schedules'].call_count)
+
+    def test_uncertain_write_is_not_retried(self):
+        self.ns['system_query'] = Mock(return_value=[dict(Machine_User__c=USER)])
+        self.ns['actuals_schedules'] = Mock(return_value=[])
+        self.ns['apex'] = Mock(side_effect=self.error('uncertain write'))
+        with self.assertRaises(self.error): self.ns['ensure_actuals_schedule']()
+        self.ns['apex'].assert_called_once()
+
+    def test_unhealthy_or_conflicting_schedules_block(self):
+        for jobs in ([], [self.schedule(), self.schedule()],
+                     *([self.schedule(**change)] for change in (
+                         dict(OwnerId='other'), dict(CronExpression='0 0 3 * * ?'),
+                         dict(TimeZoneSidKey='UTC'), dict(State='PAUSED'),
+                         dict(State='ERROR'), dict(NextFireTime=None),
+                         dict(NextFireTime='2000-01-01T10:00:00Z'), dict(CronJobDetail=None)))):
+            with self.subTest(jobs=jobs), self.assertRaises(self.error):
+                self.ns['verify_actuals_schedule'](jobs)
+        with self.assertRaises(self.error):
+            self.ns['verify_actuals_schedule']([self.schedule()], '08e000000000002AAA')
+
+    def test_missing_or_foreign_binding_blocks(self):
+        for bindings in ([], None, [self.binding(CreatedById='other')],
+                         [self.binding(ApexClass=dict(Name='WrongClass'))]):
+            self.ns['system_query'] = Mock(return_value=bindings)
+            with self.subTest(bindings=bindings), self.assertRaises(self.error):
+                self.ns['verify_actuals_schedule']([self.schedule()])
+
+    def test_mutex_must_already_bind_machine(self):
+        for locks in ([], [dict(Machine_User__c='other')], [dict(Machine_User__c=USER)] * 2):
+            self.ns['system_query'] = Mock(return_value=locks)
+            self.ns['apex'] = Mock()
+            with self.assertRaises(self.error): self.ns['ensure_actuals_schedule']()
+            self.ns['apex'].assert_not_called()
+
+    def test_discovery_includes_class_bindings_under_other_names(self):
+        self.ns['system_query'] = Mock(side_effect=[
+            [dict(CronTriggerId='08e000000000001AAA')], [self.schedule()]])
+        self.assertEqual([self.schedule()], self.ns['actuals_schedules']())
+        query = self.ns['system_query'].call_args.args[0]
+        self.assertIn("CronJobDetail.Name = 'Sales Target Daily Actuals' OR Id IN", query)
+        self.assertIn("'08e000000000001AAA'", query)
 
     def test_active_flow_exact_contract(self):
         flow=ET.parse(ROOT/'force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml')

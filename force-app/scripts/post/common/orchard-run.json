@@ -35,7 +35,7 @@
       "file": "sales-target-activate.sh",
       "timeoutMinutes": 10,
       "scopeMode": "selected_delivery",
-      "deploymentEffect": "none",
+      "deploymentEffect": "data",
       "releaseInputs": {
         "authorizationToken": "SALES_TARGET_AUTHORIZATION",
         "machineAuthToken": "SALES_TARGET_MACHINE_AUTH",
