@@ -4,7 +4,7 @@
     {
       "id": "sales-target-preflight",
       "type": "bash",
-      "file": "sales-target-preflight.sh",
+      "file": "sales-target-grant-access-and-backfill-keys.sh",
       "timeoutMinutes": 10,
       "scopeMode": "selected_delivery",
       "deploymentEffect": "data",

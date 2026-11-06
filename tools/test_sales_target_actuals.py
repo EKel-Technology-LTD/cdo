@@ -56,7 +56,7 @@ class ActivationContract(unittest.TestCase):
         self.assertEqual(next(a for a in actions if a['id']=='sales-target-preflight')['releaseInputs'],action['releaseInputs'])
 
     def test_guard_helpers_match_migration_implementation(self):
-        before=(FOLDER/'sales-target-preflight.sh').read_text().split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]
+        before=(FOLDER/'sales-target-grant-access-and-backfill-keys.sh').read_text().split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]
         originals={n.name:ast.dump(n,include_attributes=False) for n in ast.parse(before).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}
         for node in DECLARATIONS:
             if isinstance(node,(ast.FunctionDef,ast.ClassDef)) and node.name in originals and node.name!='metadata_gates':
