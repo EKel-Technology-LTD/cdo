@@ -253,6 +253,36 @@ class AuthorizationGuards(unittest.TestCase):
     def validate(self, value):
         return ns['validate_authorization'](value, self.NOW)
 
+    def test_both_actions_refuse_missing_or_mismatched_hierarchy_evidence(self):
+        context = self.authorization()
+        context['expiresAt'] = ns['parse_expiry'](context['expiresAt'])
+        expected = dict(orgId=context['orgId'], artifactSha=context['artifactSha'],
+                        targetFingerprint=context['targetFingerprint'], approvalReference=context['approvalReference'],
+                        expiresAt=context['expiresAt'].isoformat().replace('+00:00', 'Z'), object='Sales_Target_Mutex__c',
+                        grantAccessUsingHierarchies=False)
+        owner = context['operationsOwnerId']
+        receipt = dict(Id='068000000000001AAA', CreatedById=owner, LastModifiedById=owner,
+                       CreatedDate='2026-01-01T00:00:00.000+0000', Description=json.dumps(expected))
+        for path in (SOURCE, SOURCE.with_name('sales-target-activate.sh')):
+            code = path.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+            tree = ast.parse(code)
+            gate = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'verify_hierarchy_evidence')
+            execution = next(n for n in tree.body if isinstance(n, ast.Try))
+            self.assertEqual('verify_hierarchy_evidence', execution.body[4].value.func.id)
+            scope = dict(ns, emit=lambda *a, **kw: None, quote=repr)
+            exec(compile(ast.Module(body=[gate], type_ignores=[]), str(path), 'exec'), scope)
+            for records in ([], [receipt, receipt], [dict(receipt, LastModifiedById='other')],
+                            *([dict(receipt, Description=json.dumps(dict(expected, **{field: value})))]
+                              for field, value in [('grantAccessUsingHierarchies', True),
+                                  ('grantAccessUsingHierarchies', 0), ('artifactSha', 'b'*40),
+                                  ('targetFingerprint','other'), ('approvalReference','other'),
+                                  ('expiresAt','other'), ('orgId','other'), ('object','other')])):
+                with self.subTest(path=path.name, records=records), self.assertRaises(ns['GateError']):
+                    scope['query'] = lambda sql: records
+                    scope['verify_hierarchy_evidence'](context)
+            scope['query'] = lambda sql: [receipt]
+            scope['verify_hierarchy_evidence'](context)
+
     def test_exact_authorization_accepted_without_mutating_input(self):
         original = self.authorization()
         validated = self.validate(original)
@@ -689,6 +719,7 @@ class StageTwoSource(unittest.TestCase):
         manifest = json.loads((SOURCE.parent / 'orchard-run.json').read_text())
         boundary = manifest['actions'][0]['metadataBoundary']
         self.assertEqual([
+            'force-app/main/default/objects/Sales_Target_Mutex__c/Sales_Target_Mutex__c.object-meta.xml',
             'force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml',
             'force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml'
         ], boundary['after'])

@@ -172,6 +172,30 @@ def verify_authorized_org(context, observed):
     require(isinstance(observed, dict) and observed.get('Id') == context['orgId'] and observed.get('IsSandbox') is True,
             'Target is not the authorized nonproduction org')
 
+def verify_hierarchy_evidence(context):
+    # A private Salesforce File contains the owner's retained observation. The
+    # release runner only reads it, through the already authenticated target.
+    title = 'CDO-60 mutex hierarchy ' + context['artifactSha']
+    owner = context['operationsOwnerId']
+    rows = query('SELECT Id, CreatedById, LastModifiedById, CreatedDate, Description '
+                 'FROM ContentVersion WHERE IsLatest = true AND CreatedById = ' + quote(owner)
+                 + ' AND Title = ' + quote(title) + ' LIMIT 2')
+    require(len(rows) == 1, 'Expected one hierarchy verification file from the operations owner: ' + title)
+    file = rows[0]
+    require(owner != context['machineUserId'] and file.get('CreatedById') == owner
+            and file.get('LastModifiedById') == owner, 'Hierarchy evidence must be recorded by the human operations owner')
+    try:
+        proof = json.loads(file.get('Description') or '', object_pairs_hook=unique_json_object)
+    except ValueError:
+        raise GateError('Hierarchy verification file requires JSON evidence in its description')
+    pins = ('orgId', 'artifactSha', 'targetFingerprint', 'approvalReference')
+    require(isinstance(proof, dict) and all(proof.get(key) == context[key] for key in pins)
+            and proof.get('object') == 'Sales_Target_Mutex__c'
+            and proof.get('grantAccessUsingHierarchies') is False
+            and parse_expiry(proof.get('expiresAt')) == context['expiresAt'],
+            'Hierarchy evidence must verify disabled access for this mutex, org, revision and release window')
+    emit('hierarchy_evidence_verified', versionId=file['Id'], verifier=owner, recordedAt=file['CreatedDate'])
+
 def verify_machine_actor(context, actor, owner, api_only):
     require(isinstance(actor, dict) and actor.get('Id') == context['machineUserId'], 'Machine identity differs from authorization')
     require(actor.get('IsActive') is True and actor.get('TimeZoneSidKey') == 'America/Los_Angeles', 'Machine must be active with America/Los_Angeles timezone')
@@ -333,6 +357,7 @@ try:
     ORG, USER, owner = CONTEXT['orgId'], CONTEXT['machineUserId'], CONTEXT['operationsOwnerId']
     verify_authorized_org(CONTEXT, one(query('SELECT Id,IsSandbox FROM Organization'), 'deployment organization'))
     verify_authorized_org(CONTEXT, one(query('SELECT Id,IsSandbox FROM Organization', org=MACHINE), 'machine organization'))
+    verify_hierarchy_evidence(CONTEXT)
     metadata_gates()
     actor = one(query('SELECT Id,IsActive,TimeZoneSidKey,Profile.PermissionsApiOnlyUser FROM User WHERE Id = ' + quote(USER)), 'machine user')
     operations_owner = one(query('SELECT Id,IsActive FROM User WHERE Id = ' + quote(owner)), 'operations owner')
