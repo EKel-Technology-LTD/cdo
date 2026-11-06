@@ -66,10 +66,9 @@ class ActivationContract(unittest.TestCase):
         self.assertIn('load_release_inputs()',BODY)
 
     def test_deployment_leaves_business_schedules_to_users(self):
-        for script in FOLDER.glob('*.sh'):
-            body=script.read_text().split("<<'PY'\n",1)[1]
-            for operation in ('CronTrigger', 'ScheduledApex', 'createOwnedSchedule(', 'stopOwnedSchedule(', 'System.schedule(', 'System.abortJob('):
-                self.assertNotIn(operation,body,script.name)
+        for script in (ROOT/'force-app/scripts').rglob('*'):
+            if script.suffix in {'.sh','.apex'}:
+                self.assertNotRegex(script.read_text(), r'(?i)\b(?:CronTrigger|ScheduledApex|createOwnedSchedule|stopOwnedSchedule|System\s*\.\s*(?:schedule|scheduleBatch|abortJob))\b',script)
         self.assertIn('flow_version = verify_active_flow()', BODY)
         self.assertIn('audit_keys(after)', BODY)
 
