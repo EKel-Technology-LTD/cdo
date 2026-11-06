@@ -22,7 +22,7 @@ Pull requests to `main` run Orchard validation via `.github/workflows/pr-validat
 
 After the stage-one metadata installs the mutex object, the operations owner opens **Setup → Sharing Settings** in the target sandbox and verifies that **Grant Access Using Hierarchies** is disabled for **Sales Target Mutex**. Verify this before provisioning its lock record. Keep writers stopped for the approved maintenance window.
 
-Upload the observed setting (for example, a screenshot) as a Salesforce File in that sandbox. Use the title `CDO-60 mutex hierarchy <artifactSha>`, substituting the full approved commit. Share read access with the deployment user. The operations owner must create the version and set its description. Keep one matching file per commit and update its evidence when the approved window changes.
+Upload the observed setting (for example, a screenshot) as a Salesforce File in that sandbox. Use the title `CDO-60 mutex hierarchy <artifactSha>`, substituting the full approved commit. Share read access with the deployment user. The operations owner must use an account separate from both runner logins, create the version and set its description after the mutex object exists. Keep one matching file per commit and update its evidence when the approved window changes.
 
 Use this JSON in the file description, substituting the exact values from the release authorization. Use a UTC expiry ending in Z.
 

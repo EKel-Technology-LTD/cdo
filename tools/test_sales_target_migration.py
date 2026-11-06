@@ -262,26 +262,44 @@ class AuthorizationGuards(unittest.TestCase):
                         grantAccessUsingHierarchies=False)
         owner = context['operationsOwnerId']
         receipt = dict(Id='068000000000001AAA', CreatedById=owner, LastModifiedById=owner,
-                       CreatedDate='2026-01-01T00:00:00.000+0000', Description=json.dumps(expected))
+                       LastModifiedDate='2026-01-01T00:00:00.000+0000', Description=json.dumps(expected))
         for path in (SOURCE, SOURCE.with_name('sales-target-activate.sh')):
             code = path.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
             tree = ast.parse(code)
             gate = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'verify_hierarchy_evidence')
             execution = next(n for n in tree.body if isinstance(n, ast.Try))
             self.assertEqual('verify_hierarchy_evidence', execution.body[4].value.func.id)
-            scope = dict(ns, emit=lambda *a, **kw: None, quote=repr)
+            scope = dict(ns, emit=lambda *a, **kw: None, quote=repr, TARGET='deployer@example.test',
+                         one=lambda rows, purpose: rows[0])
+            def stub_query(sql, tooling=False):
+                if sql.startswith('SELECT Id FROM User'):
+                    self.assertIn("Username = 'deployer@example.test'", sql)
+                    return [{'Id': deployer}]
+                if tooling:
+                    self.assertIn("DeveloperName = 'Sales_Target_Mutex' AND NamespacePrefix = null", sql)
+                    return [{'CreatedDate':'2025-12-31T00:00:00+00:00'}]
+                self.assertIn("IsLatest = true AND CreatedById = " + repr(owner), sql)
+                self.assertIn("Title = " + repr('CDO-60 mutex hierarchy ' + context['artifactSha']), sql)
+                return records
+            deployer = '005000000000003AAA'
+            scope['query'] = stub_query
             exec(compile(ast.Module(body=[gate], type_ignores=[]), str(path), 'exec'), scope)
             for records in ([], [receipt, receipt], [dict(receipt, LastModifiedById='other')],
+                            [dict(receipt, CreatedById='other')], [dict(receipt, Description='[]')],
+                            [dict(receipt, Description='')], [dict(receipt, Description='{"a":1,"a":2}')],
+                            [dict(receipt, LastModifiedDate='2025-01-01T00:00:00Z')],
                             *([dict(receipt, Description=json.dumps(dict(expected, **{field: value})))]
                               for field, value in [('grantAccessUsingHierarchies', True),
                                   ('grantAccessUsingHierarchies', 0), ('artifactSha', 'b'*40),
                                   ('targetFingerprint','other'), ('approvalReference','other'),
-                                  ('expiresAt','other'), ('orgId','other'), ('object','other')])):
+                                  ('expiresAt','other'), ('orgId','other'), ('object','other'), ('unknown',False)])):
                 with self.subTest(path=path.name, records=records), self.assertRaises(ns['GateError']):
-                    scope['query'] = lambda sql: records
                     scope['verify_hierarchy_evidence'](context)
-            scope['query'] = lambda sql: [receipt]
+            records = [receipt]
             scope['verify_hierarchy_evidence'](context)
+            for machine, deployer in ((owner, deployer), (context['machineUserId'], owner)):
+                with self.assertRaises(ns['GateError']):
+                    scope['verify_hierarchy_evidence'](dict(context, machineUserId=machine))
 
     def test_exact_authorization_accepted_without_mutating_input(self):
         original = self.authorization()
@@ -720,6 +738,9 @@ class StageTwoSource(unittest.TestCase):
         boundary = manifest['actions'][0]['metadataBoundary']
         self.assertEqual([
             'force-app/main/default/objects/Sales_Target_Mutex__c/Sales_Target_Mutex__c.object-meta.xml',
+            'force-app/main/default/objects/Sales_Target_Mutex__c/fields/Lock_Key__c.field-meta.xml',
+            'force-app/main/default/objects/Sales_Target_Mutex__c/fields/Machine_User__c.field-meta.xml',
+            'force-app/main/default/objects/Sales_Target_Mutex__c/validationRules/System_Only_Singleton.validationRule-meta.xml',
             'force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml',
             'force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml'
         ], boundary['after'])

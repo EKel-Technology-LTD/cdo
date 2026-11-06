@@ -146,7 +146,7 @@ def formula_matches(actual, expected):
 def unique_json_object(pairs):
     result = {}
     for key, value in pairs:
-        require(key not in result, 'Duplicate authorization JSON key')
+        require(key not in result, 'Duplicate release JSON key')
         result[key] = value
     return result
 
@@ -177,24 +177,30 @@ def verify_hierarchy_evidence(context):
     # release runner only reads it, through the already authenticated target.
     title = 'CDO-60 mutex hierarchy ' + context['artifactSha']
     owner = context['operationsOwnerId']
-    rows = query('SELECT Id, CreatedById, LastModifiedById, CreatedDate, Description '
+    deployer = one(query('SELECT Id FROM User WHERE Username = ' + quote(TARGET)), 'deployment user')
+    require(owner not in (context['machineUserId'], deployer['Id']), 'Verify sharing with an operations owner distinct from both runner logins')
+    mutex = one(query("SELECT Id, CreatedDate FROM CustomObject WHERE DeveloperName = 'Sales_Target_Mutex' AND NamespacePrefix = null", True), 'installed mutex object')
+    rows = query('SELECT Id, CreatedById, LastModifiedById, LastModifiedDate, Description '
                  'FROM ContentVersion WHERE IsLatest = true AND CreatedById = ' + quote(owner)
                  + ' AND Title = ' + quote(title) + ' LIMIT 2')
     require(len(rows) == 1, 'Expected one hierarchy verification file from the operations owner: ' + title)
     file = rows[0]
-    require(owner != context['machineUserId'] and file.get('CreatedById') == owner
+    require(file.get('CreatedById') == owner
             and file.get('LastModifiedById') == owner, 'Hierarchy evidence must be recorded by the human operations owner')
     try:
         proof = json.loads(file.get('Description') or '', object_pairs_hook=unique_json_object)
     except ValueError:
         raise GateError('Hierarchy verification file requires JSON evidence in its description')
     pins = ('orgId', 'artifactSha', 'targetFingerprint', 'approvalReference')
-    require(isinstance(proof, dict) and all(proof.get(key) == context[key] for key in pins)
+    require(isinstance(proof, dict) and set(proof) == {*pins, 'object', 'grantAccessUsingHierarchies', 'expiresAt'}
+            and all(proof.get(key) == context[key] for key in pins)
             and proof.get('object') == 'Sales_Target_Mutex__c'
             and proof.get('grantAccessUsingHierarchies') is False
             and parse_expiry(proof.get('expiresAt')) == context['expiresAt'],
             'Hierarchy evidence must verify disabled access for this mutex, org, revision and release window')
-    emit('hierarchy_evidence_verified', versionId=file['Id'], verifier=owner, recordedAt=file['CreatedDate'])
+    require(dt.datetime.fromisoformat(file['LastModifiedDate']) >= dt.datetime.fromisoformat(mutex['CreatedDate']),
+            'Hierarchy verification must be recorded after installing the mutex object in this sandbox')
+    emit('hierarchy_evidence_verified', versionId=file['Id'], verifier=owner, recordedAt=file['LastModifiedDate'])
 
 def verify_machine_actor(context, actor, owner, api_only):
     require(isinstance(actor, dict) and actor.get('Id') == context['machineUserId'], 'Machine identity differs from authorization')
