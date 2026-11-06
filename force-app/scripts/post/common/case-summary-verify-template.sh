@@ -26,7 +26,7 @@ try:
     records=sf('data','query','--query','SELECT Id,IsSandbox FROM Organization')['records']
     if len(records)!=1 or records[0]['IsSandbox'] is not True: raise RuntimeError('Nonproduction only')
     source=ET.parse('force-app/main/default/genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml').getroot()
-    with tempfile.TemporaryDirectory(prefix='case-summary-activation-', dir='.') as temp:
+    with tempfile.TemporaryDirectory(prefix='case-summary-template-readback-', dir='.') as temp:
         folder=pathlib.Path(temp)
         _,root,receipt=retrieve(folder/'readback')
         for field in ('developerName','relatedEntity','relatedField','type'):
@@ -52,6 +52,6 @@ try:
         if active_identifier!=version: raise RuntimeError('Pinned source version is not active; inspect the deployment receipt')
         print(json.dumps({'orgId':records[0]['Id'],'template':'Case_Resolution_Summary','activeVersionIdentifier':version,'retrieveId':receipt.get('id'),'verified':True}))
 except Exception as error:
-    print('Case summary activation blocked: '+str(error),file=sys.stderr)
+    print('Case summary template verification blocked: '+str(error),file=sys.stderr)
     sys.exit(1)
 PY

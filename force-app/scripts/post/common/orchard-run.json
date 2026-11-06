@@ -2,9 +2,9 @@
   "version": 1,
   "actions": [
     {
-      "id": "activate-case-summary",
+      "id": "verify-case-summary-template",
       "type": "bash",
-      "file": "case-summary-activate.sh",
+      "file": "case-summary-verify-template.sh",
       "timeoutMinutes": 10,
       "deploymentEffect": "none"
     },
@@ -14,13 +14,6 @@
       "file": "case-summary-verify-page.sh",
       "timeoutMinutes": 5,
       "deploymentEffect": "none"
-    },
-    {
-      "id": "assign-case-summary-access",
-      "type": "bash",
-      "file": "case-summary-access.sh",
-      "timeoutMinutes": 5,
-      "deploymentEffect": "data"
     }
   ]
 }

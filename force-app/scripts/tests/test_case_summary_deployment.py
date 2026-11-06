@@ -39,17 +39,21 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.assertEqual('Published', versions[0].findtext('m:status', namespaces=NS))
 
     def test_activation_is_ordinary_post_verification_not_a_build_dependency(self):
-        action = self.by_id['activate-case-summary']
+        action = self.by_id['verify-case-summary-template']
         self.assertEqual('none', action['deploymentEffect'])
         self.assertNotIn('metadataBoundary', action)
         self.assertNotIn('reviewPrerequisite', action)
 
-    def test_readback_is_an_ordinary_post_action_before_assignments(self):
+    def test_post_actions_only_read_and_production_is_manual(self):
+        self.assertEqual(['verify-case-summary-template', 'verify-case-summary-page'], list(self.by_id))
+        self.assertEqual({'none'}, {action['deploymentEffect'] for action in self.actions})
+        production = json.loads((ROOT / 'force-app/scripts/post/environments/production/orchard-run.json').read_text())['actions']
+        self.assertEqual({(action_id, True) for action_id in self.by_id}, {(a['id'], a.get('disabled')) for a in production})
+
+    def test_page_readback_is_an_ordinary_post_action(self):
         action = self.by_id['verify-case-summary-page']
         self.assertNotIn('metadataBoundary', action)
-        self.assertEqual('none', action['deploymentEffect'])
-        self.assertLess(self.actions.index(action), self.actions.index(self.by_id['assign-case-summary-access']))
-        activation = embedded_python('case-summary-activate.sh')
+        activation = embedded_python('case-summary-verify-template.sh')
         self.assertNotIn('CustomApplication:', activation)
         verification = embedded_python(action['file'])
         self.assertIn('CustomApplication:standard__LightningService', verification)
@@ -58,7 +62,7 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.assertNotIn("'create'", verification)
 
     def test_template_verification_uses_retrieved_version_without_mutation(self):
-        source = embedded_python('case-summary-activate.sh')
+        source = embedded_python('case-summary-verify-template.sh')
         self.assertIn("version=matches[0].findtext('m:versionIdentifier'", source)
         self.assertNotIn("'deploy'", source)
         self.assertNotIn("'create'", source)
@@ -85,7 +89,7 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
             os.chdir(ROOT)
             with patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as error:
-                    exec(compile(embedded_python('case-summary-activate.sh'), 'template-verification', 'exec'), {})
+                    exec(compile(embedded_python('case-summary-verify-template.sh'), 'template-verification', 'exec'), {})
             self.assertEqual(1, error.exception.code)
             self.assertFalse(any(args[1:3] == ['project', 'deploy'] for args in calls))
         finally:
@@ -161,7 +165,7 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         old_cwd = Path.cwd()
         try:
             os.chdir(ROOT)
-            for name in ('case-summary-activate.sh', 'case-summary-verify-page.sh'):
+            for name in ('case-summary-verify-template.sh', 'case-summary-verify-page.sh'):
                 with self.subTest(script=name), patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']):
                     out, err = io.StringIO(), io.StringIO()
                     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
