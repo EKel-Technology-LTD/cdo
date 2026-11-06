@@ -9,7 +9,7 @@
 # supplying its 0600 authorization file and authenticated username. No login here.
 # Keep writers quiesced through stage-2 activation; no automatic writer resume.
 set -euo pipefail
-: "${ORCHARD_TARGET_ORG:?Orchard must supply the authenticated target alias}"
+: "${ORCHARD_TARGET_ORG:?Orchard must supply the authenticated target username}"
 [[ $# -eq 1 && "$1" == "$ORCHARD_TARGET_ORG" ]] || { echo 'Target arguments disagree' >&2; exit 1; }
 command -v sf >/dev/null
 command -v python3 >/dev/null
@@ -180,7 +180,7 @@ def verify_hierarchy_evidence(context):
     deployer = one(query('SELECT Id FROM User WHERE Username = ' + quote(TARGET)), 'deployment user')
     require(owner not in (context['machineUserId'], deployer['Id']), 'Verify sharing with an operations owner distinct from both runner logins')
     mutex = one(query("SELECT Id, CreatedDate FROM CustomObject WHERE DeveloperName = 'Sales_Target_Mutex' AND NamespacePrefix = null", True), 'installed mutex object')
-    rows = query('SELECT Id, CreatedById, LastModifiedById, LastModifiedDate, Description '
+    rows = query('SELECT Id, CreatedById, LastModifiedById, CreatedDate, LastModifiedDate, Description '
                  'FROM ContentVersion WHERE IsLatest = true AND CreatedById = ' + quote(owner)
                  + ' AND Title = ' + quote(title) + ' LIMIT 2')
     require(len(rows) == 1, 'Expected one hierarchy verification file from the operations owner: ' + title)
@@ -198,7 +198,8 @@ def verify_hierarchy_evidence(context):
             and proof.get('grantAccessUsingHierarchies') is False
             and parse_expiry(proof.get('expiresAt')) == context['expiresAt'],
             'Hierarchy evidence must verify disabled access for this mutex, org, revision and release window')
-    require(dt.datetime.fromisoformat(file['LastModifiedDate']) >= dt.datetime.fromisoformat(mutex['CreatedDate']),
+    installed_at = dt.datetime.fromisoformat(mutex['CreatedDate'])
+    require(all(dt.datetime.fromisoformat(file[field]) >= installed_at for field in ('CreatedDate', 'LastModifiedDate')),
             'Hierarchy verification must be recorded after installing the mutex object in this sandbox')
     emit('hierarchy_evidence_verified', versionId=file['Id'], verifier=owner, recordedAt=file['LastModifiedDate'])
 

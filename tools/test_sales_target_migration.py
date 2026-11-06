@@ -262,6 +262,7 @@ class AuthorizationGuards(unittest.TestCase):
                         grantAccessUsingHierarchies=False)
         owner = context['operationsOwnerId']
         receipt = dict(Id='068000000000001AAA', CreatedById=owner, LastModifiedById=owner,
+                       CreatedDate='2026-01-01T00:00:00.000+0000',
                        LastModifiedDate='2026-01-01T00:00:00.000+0000', Description=json.dumps(expected))
         for path in (SOURCE, SOURCE.with_name('sales-target-activate.sh')):
             code = path.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
@@ -288,6 +289,7 @@ class AuthorizationGuards(unittest.TestCase):
                             [dict(receipt, CreatedById='other')], [dict(receipt, Description='[]')],
                             [dict(receipt, Description='')], [dict(receipt, Description='{"a":1,"a":2}')],
                             [dict(receipt, LastModifiedDate='2025-01-01T00:00:00Z')],
+                            [dict(receipt, CreatedDate='2025-01-01T00:00:00Z')],
                             *([dict(receipt, Description=json.dumps(dict(expected, **{field: value})))]
                               for field, value in [('grantAccessUsingHierarchies', True),
                                   ('grantAccessUsingHierarchies', 0), ('artifactSha', 'b'*40),
