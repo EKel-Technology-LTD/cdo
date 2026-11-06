@@ -13,7 +13,7 @@ import unittest
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'force-app/scripts/post/common/sales-target-preflight.sh'
+SOURCE = ROOT / 'force-app/scripts/post/common/sales-target-grant-access-and-backfill-keys.sh'
 body = SOURCE.read_text().split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
 parsed = ast.parse(body)
 # Load only declarations needed by pure tests, not the action's execution block.
