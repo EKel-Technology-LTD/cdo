@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "verify-case-summary-template",
+      "type": "bash",
+      "file": "case-summary-verify-template.sh",
+      "timeoutMinutes": 10,
+      "deploymentEffect": "none"
+    },
+    {
+      "id": "verify-case-summary-page",
+      "type": "bash",
+      "file": "case-summary-verify-page.sh",
+      "timeoutMinutes": 5,
+      "deploymentEffect": "none"
+    }
+  ]
+}

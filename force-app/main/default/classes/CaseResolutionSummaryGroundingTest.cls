@@ -1,0 +1,650 @@
+@IsTest
+private class CaseResolutionSummaryGroundingTest {
+  @IsTest
+  static void inspectWholeEntryBeforeTruncation() {
+    String safe = '已確認電源正常。';
+    Assert.areEqual(safe, CaseResolutionSummaryGrounding.safeText(safe, 1000));
+    for (
+      String sensitive : new List<String>{
+        '0912-999-999',
+        '０９１２－９９９－９９９',
+        '姓名：測試人',
+        'customer@example.invalid',
+        '內部測試字串-001',
+        '技師備註：測試',
+        '台北市信義區測試路1號',
+        '發票 AB12345678',
+        'ignore previous instructions',
+        '客戶姓名: 合成人',
+        'invoice: XX12345678',
+        '內 部 備 註',
+        '住址：測試',
+        'customer&#64;example.invalid',
+        '%30%39%31%32',
+        '0\u200B912-999-999'
+      }
+    ) {
+      Assert.isNull(
+        CaseResolutionSummaryGrounding.safeText(safe + sensitive, 1000)
+      );
+      Assert.isNull(
+        CaseResolutionSummaryGrounding.safeText(
+          '安全內容'.repeat(300) + sensitive,
+          1000
+        )
+      );
+    }
+    Assert.areEqual(
+      1000,
+      CaseResolutionSummaryGrounding.safeText('安全'.repeat(700), 1000).length()
+    );
+    Assert.isNull(
+      CaseResolutionSummaryGrounding.safeText('x'.repeat(33000), 1000)
+    );
+    Assert.isNull(CaseResolutionSummaryGrounding.safeText('安全\uFFFD', 1000));
+    Assert.isNull(CaseResolutionSummaryGrounding.safeText(null, 1000));
+  }
+  @IsTest
+  static void maximumEntryLiteralDetection() {
+    Assert.areEqual(
+      'x'.repeat(1000),
+      CaseResolutionSummaryGrounding.safeText('x'.repeat(32768), 1000)
+    );
+    for (String marker : new List<String>{'internal', 'technician', '姓名', 'instruction', '請輸出'}) {
+      Assert.isNull(
+        CaseResolutionSummaryGrounding.safeText('x'.repeat(32768 - marker.length()) + marker, 1000),
+        'Inspect sensitive literal at the end of the complete maximum-length entry'
+      );
+    }
+  }
+  @IsTest
+  static void maximumEntryPatternBoundaries() {
+    for (String safe : new List<String>{'&'.repeat(32768), '市'.repeat(32768), '123456' + 'a'.repeat(32762)}) {
+      Assert.isNotNull(CaseResolutionSummaryGrounding.safeText(safe, 1000));
+    }
+    for (String unsafe : new List<String>{
+      'x'.repeat(511) + '市' + 'x'.repeat(30) + '路',
+      'x'.repeat(511) + '&' + 'x'.repeat(20) + ';',
+      'x'.repeat(511) + '%64',
+      '1a' + 'x'.repeat(32760) + 'street',
+      '1streetroad',
+      '12aavenue'
+    }) {
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(unsafe, 1000));
+    }
+  }
+  @IsTest
+  static void streetSuffixAtStartOfLetterRunIsOmitted() {
+    for (String address : new List<String>{
+      '12 Avenue', '12 Road', '12 Street', '1street',
+      '12th Avenue', '12 Main Street', '12aavenue',
+      '１２ Ａｖｅｎｕｅ', '12 A\u200Bvenue'
+    }) {
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(address, 1000),
+        'Omit address-shaped text, including a suffix immediately after the number');
+      Assert.isNull(CaseResolutionSummaryGrounding.safeText(
+        'x'.repeat(32768 - address.length()) + address, 1000),
+        'Inspect address-shaped text beyond the returned prefix at the size limit');
+    }
+    for (String safe : new List<String>{'12 motors repaired', 'Avenue motor repaired', '12rd'}) {
+      Assert.areEqual(safe, CaseResolutionSummaryGrounding.safeText(safe, 1000));
+    }
+  }
+  @IsTest
+  static void authorizationRequiresEveryGrant() {
+    Assert.isTrue(
+      CaseResolutionSummaryGrounding.authorized(true, true, true, true)
+    );
+    Assert.isFalse(
+      CaseResolutionSummaryGrounding.authorized(false, true, true, true)
+    );
+    Assert.isFalse(
+      CaseResolutionSummaryGrounding.authorized(true, false, true, true)
+    );
+    Assert.isFalse(
+      CaseResolutionSummaryGrounding.authorized(true, true, false, true)
+    );
+    Assert.isFalse(
+      CaseResolutionSummaryGrounding.authorized(true, true, true, false)
+    );
+  }
+  @IsTest
+  static void exactSourceFormatting() {
+    Assert.areEqual(
+      '2026-10-01',
+      CaseResolutionSummaryGrounding.fact(Date.newInstance(2026, 10, 1))
+    );
+    Assert.areEqual(
+      '2026-10-01T01:02:03Z',
+      CaseResolutionSummaryGrounding.fact(
+        Datetime.newInstanceGmt(2026, 10, 1, 1, 2, 3)
+      )
+    );
+    Assert.areEqual(
+      '2026-10-01T00:00:00Z',
+      CaseResolutionSummaryGrounding.fact(Datetime.newInstanceGmt(2026, 10, 1, 0, 0, 0))
+    );
+    Assert.areEqual('2024-02-29', CaseResolutionSummaryGrounding.fact(Date.newInstance(2024, 2, 29)));
+    Assert.areEqual(
+      '0.00',
+      CaseResolutionSummaryGrounding.fact(Decimal.valueOf('0.00'))
+    );
+    Assert.areEqual(
+      '123.45',
+      CaseResolutionSummaryGrounding.fact(Decimal.valueOf('123.45'))
+    );
+    Assert.isNull(CaseResolutionSummaryGrounding.fact(null));
+  }
+  private static User agent(Boolean feature) {
+    User u = new User(
+      Alias = 'sumtest',
+      Email = 'summary@example.invalid',
+      EmailEncodingKey = 'UTF-8',
+      LastName = 'Synthetic Summary',
+      LanguageLocaleKey = 'en_US',
+      LocaleSidKey = 'en_US',
+      TimeZoneSidKey = 'Asia/Taipei',
+      ProfileId = UserInfo.getProfileId(),
+      Username = 'summary.' +
+        String.valueOf(Crypto.getRandomLong()) +
+        '@example.invalid'
+    );
+    insert u;
+    Set<String> names = new Set<String>{
+      'Case_Resolution_Edit',
+      'Repair_Order_Read',
+      'Asset_Warranty_Read',
+      'Product_Catalog_Read'
+    };
+    // No entitlement-dependent Run Prompt Templates assignment is needed for an Apex unit test.
+    PermissionSet gate = new PermissionSet(
+      Name = 'SyntheticSummaryGate',
+      Label = 'Synthetic Summary Gate'
+    );
+    insert gate;
+    if (feature) {
+      insert new SetupEntityAccess(
+        ParentId = gate.Id,
+        SetupEntityId = [
+          SELECT Id
+          FROM CustomPermission
+          WHERE DeveloperName = 'Case_Summary_Generation'
+        ]
+        .Id
+      );
+    }
+    List<PermissionSetAssignment> assignments = new List<PermissionSetAssignment>{
+      new PermissionSetAssignment(AssigneeId = u.Id, PermissionSetId = gate.Id)
+    };
+    for (PermissionSet ps : [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name IN :names
+    ]) {
+      assignments.add(
+        new PermissionSetAssignment(AssigneeId = u.Id, PermissionSetId = ps.Id)
+      );
+    }
+    insert assignments;
+    // Check the deployed grant, not profile access or a synthetic FLS shim.
+    List<FieldPermissions> assetGrants = [
+      SELECT PermissionsRead, PermissionsEdit
+      FROM FieldPermissions
+      WHERE Parent.Name = 'Case_Resolution_Edit' AND Field = 'Case.AssetId'
+    ];
+    Assert.areEqual(1, assetGrants.size(), 'Ship the Case.AssetId grant');
+    Assert.isTrue(assetGrants[0].PermissionsRead, 'Grounding needs lookup read access');
+    Assert.isFalse(assetGrants[0].PermissionsEdit, 'Grounding does not need lookup edit access');
+    return u;
+  }
+  private static CaseResolutionSummaryGrounding.Request request(Case c) {
+    CaseResolutionSummaryGrounding.Request r = new CaseResolutionSummaryGrounding.Request();
+    r.RelatedEntity = c;
+    return r;
+  }
+  @IsTest
+  static void persistedOrderedBoundedAndNoWrites() {
+    User u = agent(true);
+    System.runAs(u) {
+      Account a = new Account(Name = 'Synthetic Summary Account');
+      insert a;
+      Product2 p = new Product2(
+        Name = '合成空氣清淨機',
+        Model_Number__c = 'SYN-001',
+        IsActive = false
+      );
+      insert p;
+      Asset asset = new Asset(
+        Name = 'Synthetic Asset',
+        AccountId = a.Id,
+        Product2Id = p.Id
+      );
+      insert asset;
+      List<Case> cases = new List<Case>{
+        new Case(
+          Subject = '第一案件',
+          Description = '無法開機',
+          Origin = 'Phone',
+          Status = 'New',
+          AssetId = asset.Id,
+          SuppliedPhone = '0912-999-999',
+          Resolution_Summary__c = '原有摘要'
+        ),
+        new Case(
+          Subject = '第二案件',
+          Description = '已提供操作說明',
+          Origin = 'Phone',
+          Status = 'Closed',
+          Resolution_Code__c = 'Answered'
+        )
+      };
+      insert cases;
+      List<Repair_Order__c> orders = new List<Repair_Order__c>();
+      for (Integer i = 0; i < 4; i++)
+        orders.add(
+          new Repair_Order__c(
+            Case__c = cases[0].Id,
+            Asset__c = asset.Id,
+            Intake_Method__c = 'Courier_Pickup',
+            Fault_Category__c = 'No_Power',
+            Fault_Description__c = '合成測試',
+            Repair_Status__c = 'Shipped_Back',
+            Shipped_Back_Date__c = Date.newInstance(2026, 10, 1),
+            Return_Tracking_Number__c = 'SYNTHETIC',
+            Warranty_Coverage__c = 'In_Warranty',
+            Diagnosis_Result__c = '電源模組已更換',
+            Technician_Notes__c = '內部測試字串-001'
+          )
+        );
+      // Fixture setup needs write access; the generation persona has read-only repair access.
+      insert as system orders;
+      for (Repair_Order__c order : orders)
+        Test.setCreatedDate(
+          order.Id,
+          Datetime.newInstanceGmt(2026, 10, 1, 0, 0, 0)
+        );
+      List<CaseComment> comments = new List<CaseComment>();
+      List<EmailMessage> emails = new List<EmailMessage>();
+      for (Integer i = 0; i < 6; i++) {
+        comments.add(
+          new CaseComment(
+            ParentId = cases[0].Id,
+            IsPublished = true,
+            CommentBody = '已確認運作正常' + i
+          )
+        );
+        emails.add(
+          new EmailMessage(
+            ParentId = cases[0].Id,
+            TextBody = '已完成回覆' + i,
+            Subject = 'Synthetic',
+            Incoming = true,
+            Status = '0'
+          )
+        );
+      }
+      comments.add(
+        new CaseComment(
+          ParentId = cases[0].Id,
+          IsPublished = false,
+          CommentBody = '內部測試字串-001'
+        )
+      );
+      insert comments;
+      insert emails;
+      List<Repair_Order__c> expected = [
+        SELECT Name
+        FROM Repair_Order__c
+        WHERE Case__c = :cases[0].Id
+        ORDER BY CreatedDate DESC, Id DESC
+        LIMIT 3
+      ];
+      cases[0].Subject = 'Caller supplied forgery';
+      Test.startTest();
+      Integer dml = Limits.getDmlStatements();
+      List<CaseResolutionSummaryGrounding.Response> result = CaseResolutionSummaryGrounding.prepare(
+        new List<CaseResolutionSummaryGrounding.Request>{
+          request(cases[1]),
+          request(cases[0])
+        }
+      );
+      Assert.areEqual(dml, Limits.getDmlStatements());
+      Test.stopTest();
+      Assert.areEqual(2, result.size());
+      Map<String, Object> noRepair = (Map<String, Object>) JSON.deserializeUntyped(
+        result[0].Prompt
+      );
+      Map<String, Object> repaired = (Map<String, Object>) JSON.deserializeUntyped(
+        result[1].Prompt
+      );
+      Assert.areEqual(0, ((List<Object>) noRepair.get('repairs')).size());
+      Assert.areEqual(3, ((List<Object>) repaired.get('repairs')).size());
+      Assert.areEqual(5, ((List<Object>) repaired.get('comments')).size());
+      Assert.areEqual(5, ((List<Object>) repaired.get('emails')).size());
+      List<Object> facts = (List<Object>) repaired.get('repairs');
+      for (Integer i = 0; i < 3; i++)
+        Assert.areEqual(
+          expected[i].Name,
+          ((Map<String, Object>) facts[i]).get('number')
+        );
+      for (
+        String forbidden : new List<String>{
+          '0912-999-999',
+          '內部測試字串-001',
+          'Caller supplied forgery',
+          '原有摘要'
+        }
+      )
+        Assert.isFalse(result[1].Prompt.contains(forbidden));
+      Assert.isTrue(result[1].Prompt.contains('2026-10-01'));
+      Assert.isTrue(result[1].Prompt.contains('SYN-001'));
+      Assert.areEqual(
+        '原有摘要',
+        [SELECT Resolution_Summary__c FROM Case WHERE Id = :cases[0].Id]
+        .Resolution_Summary__c
+      );
+    }
+  }
+  @IsTest
+  static void featureDeniedBeforeQuery() {
+    User u = agent(false);
+    System.runAs(u) {
+      Test.startTest();
+      Integer queries = Limits.getQueries();
+      try {
+        CaseResolutionSummaryGrounding.prepare(
+          new List<CaseResolutionSummaryGrounding.Request>{
+            request(new Case())
+          }
+        );
+        Assert.fail('Must reject');
+      } catch (CaseResolutionSummaryGrounding.PreparationException e) {
+        Assert.areEqual(
+          '無法準備案件摘要，請確認存取權限與案件資料。',
+          e.getMessage()
+        );
+      }
+      Assert.areEqual(queries, Limits.getQueries());
+      Test.stopTest();
+    }
+  }
+  private static void assertRejectedBatchSize(Integer size) {
+    User u = agent(true);
+    System.runAs(u) {
+      List<CaseResolutionSummaryGrounding.Request> inputs = new List<CaseResolutionSummaryGrounding.Request>();
+      Case persisted = new Case(
+        Subject = 'Boundary',
+        Status = 'New',
+        Origin = 'Phone'
+      );
+      insert persisted;
+      // Valid persisted Ids ensure rejection is the input budget, not Id validation.
+      for (Integer i = 0; i < size; i++)
+        inputs.add(request(persisted));
+      Test.startTest();
+      Integer queries = Limits.getQueries();
+      Integer writes = Limits.getDmlStatements();
+      try {
+        CaseResolutionSummaryGrounding.prepare(inputs);
+        Assert.fail('Oversized native requests must fail closed');
+      } catch (CaseResolutionSummaryGrounding.PreparationException e) {
+        Assert.areEqual(
+          '無法準備案件摘要，請確認存取權限與案件資料。',
+          e.getMessage()
+        );
+      }
+      Assert.areEqual(queries, Limits.getQueries());
+      Assert.areEqual(writes, Limits.getDmlStatements());
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void oversizedNativeBatchFailsBeforeRetrieval() {
+    assertRejectedBatchSize(3);
+  }
+  @IsTest
+  static void formerTwoHundredBatchFailsBeforeRetrieval() {
+    assertRejectedBatchSize(200);
+  }
+  @IsTest
+  static void twoInputsPreserveOrderWithBoundedQueries() {
+    User u = agent(true);
+    System.runAs(u) {
+      List<Case> cases = new List<Case>();
+      for (Integer i = 0; i < 2; i++)
+        cases.add(
+          new Case(
+            Subject = 'Synthetic case ' + i,
+            Status = 'New',
+            Origin = 'Phone'
+          )
+        );
+      insert cases;
+      List<CaseResolutionSummaryGrounding.Request> inputs = new List<CaseResolutionSummaryGrounding.Request>();
+      for (Integer i = 1; i >= 0; i--)
+        inputs.add(request(cases[i]));
+      Test.startTest();
+      Integer queries = Limits.getQueries();
+      Integer writes = Limits.getDmlStatements();
+      List<CaseResolutionSummaryGrounding.Response> results = CaseResolutionSummaryGrounding.prepare(
+        inputs
+      );
+      Assert.isTrue(Limits.getQueries() - queries <= 2);
+      Assert.areEqual(writes, Limits.getDmlStatements());
+      Test.stopTest();
+      Assert.areEqual(2, results.size());
+      for (Integer i = 0; i < 2; i++) {
+        Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+          results[i].Prompt
+        );
+        Assert.areEqual(
+          cases[1 - i].Subject,
+          ((Map<String, Object>) root.get('case')).get('subject')
+        );
+        Assert.areEqual(0, ((List<Object>) root.get('repairs')).size());
+      }
+    }
+  }
+  // Materialize both parents' maximum selected children, including maximum-size
+  // email bodies. Creation returns only Ids: fixture strings must not occupy the
+  // caller heap while the resource re-queries them.
+  private static List<Case> populatedCases(Integer emailLength) {
+    Account account = new Account(Name = 'Synthetic Memory Account');
+    insert account;
+    Asset asset = new Asset(
+      Name = 'Synthetic Memory Asset',
+      AccountId = account.Id
+    );
+    insert asset;
+    List<Case> cases = new List<Case>{
+      new Case(
+        Subject = '甲案件',
+        Description = '甲'.repeat(32000),
+        Status = 'New',
+        Origin = 'Phone'
+      ),
+      new Case(
+        Subject = '乙案件',
+        Description = '乙'.repeat(32000),
+        Status = 'New',
+        Origin = 'Phone'
+      )
+    };
+    insert cases;
+    List<Repair_Order__c> repairs = new List<Repair_Order__c>();
+    List<CaseComment> comments = new List<CaseComment>();
+    List<EmailMessage> emails = new List<EmailMessage>();
+    for (Case c : cases) {
+      for (Integer i = 0; i < 3; i++) {
+        repairs.add(
+          new Repair_Order__c(
+            Case__c = c.Id,
+            Asset__c = asset.Id,
+            Intake_Method__c = 'Courier_Pickup',
+            Fault_Category__c = 'No_Power',
+            Fault_Description__c = '合成測試',
+            Diagnosis_Result__c = '檢'.repeat(4000)
+          )
+        );
+      }
+      for (Integer i = 0; i < 5; i++) {
+        comments.add(
+          new CaseComment(
+            ParentId = c.Id,
+            IsPublished = true,
+            // CaseComment's 4000 limit is bytes, not Unicode characters.
+            CommentBody = 'c'.repeat(4000)
+          )
+        );
+        // Sensitive suffix lies beyond the visible cap. Never accept its prefix.
+        String suffix = 'internal note: synthetic';
+        emails.add(
+          new EmailMessage(
+            ParentId = c.Id,
+            Incoming = true,
+            Status = '0',
+            Subject = 'Synthetic',
+            TextBody = 'x'.repeat(emailLength - suffix.length()) + suffix
+          )
+        );
+      }
+    }
+    insert as system repairs;
+    insert comments;
+    insert emails;
+    return new List<Case>{
+      new Case(Id = cases[0].Id),
+      new Case(Id = cases[1].Id)
+    };
+  }
+  private static void assertPopulatedBudget(Integer emailLength) {
+    User u = agent(true);
+    System.runAs(u) {
+      List<Case> cases = populatedCases(emailLength);
+      Test.startTest();
+      Integer queries = Limits.getQueries();
+      Integer writes = Limits.getDmlStatements();
+      List<CaseResolutionSummaryGrounding.Response> results = CaseResolutionSummaryGrounding.prepare(
+        new List<CaseResolutionSummaryGrounding.Request>{
+          request(cases[1]),
+          request(cases[0])
+        }
+      );
+      Assert.areEqual(
+        2,
+        Limits.getQueries() - queries,
+        'Two bounded top-level queries'
+      );
+      Assert.areEqual(
+        writes,
+        Limits.getDmlStatements(),
+        'Preparation never writes'
+      );
+      Assert.areEqual(2, results.size(), 'One response per input');
+      for (Integer i = 0; i < results.size(); i++) {
+        Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(
+          results[i].Prompt
+        );
+        Assert.areEqual(
+          i == 0 ? '乙案件' : '甲案件',
+          ((Map<String, Object>) root.get('case')).get('subject'),
+          'Input order and isolation'
+        );
+        Assert.areEqual(
+          3,
+          ((List<Object>) root.get('repairs')).size(),
+          'Keep all selected repairs'
+        );
+        Assert.areEqual(
+          5,
+          ((List<Object>) root.get('comments')).size(),
+          'Keep all selected comments'
+        );
+        Assert.areEqual(
+          0,
+          ((List<Object>) root.get('emails')).size(),
+          'Omit whole unsafe email'
+        );
+        Assert.areEqual(
+          5,
+          ((List<Object>) root.get('omittedEntries')).size(),
+          'Each omitted email is explicit'
+        );
+        Assert.isFalse(
+          results[i].Prompt.contains('internal note'),
+          'No sensitive suffix'
+        );
+        Assert.isFalse(results[i].Prompt.contains('x'.repeat(100)), 'No unsafe prefix');
+      }
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void maximumEmailBodiesWithPopulatedChildren() {
+    assertPopulatedBudget(131072);
+  }
+  @IsTest
+  static void fullInspectionBoundaryWithPopulatedChildren() {
+    assertPopulatedBudget(32768);
+  }
+  @IsTest
+  static void callerHeapRejectedBeforeQueryOrDml() {
+    User u = agent(true);
+    System.runAs(u) {
+      Case c = new Case(
+        Subject = 'Memory boundary',
+        Status = 'New',
+        Origin = 'Phone'
+      );
+      insert c;
+      Test.startTest();
+      // More than the one-MB caller allowance, even with one byte per character.
+      String callerAllocation = 'x'.repeat(1100000);
+      Integer queries = Limits.getQueries();
+      Integer writes = Limits.getDmlStatements();
+      try {
+        CaseResolutionSummaryGrounding.prepare(
+          new List<CaseResolutionSummaryGrounding.Request>{ request(c) }
+        );
+        Assert.fail('Insufficient pre-query headroom must fail closed');
+      } catch (CaseResolutionSummaryGrounding.PreparationException e) {
+        Assert.areEqual(
+          '無法準備案件摘要，請確認存取權限與案件資料。',
+          e.getMessage()
+        );
+      }
+      Assert.areEqual(
+        queries,
+        Limits.getQueries(),
+        'Reject before any retrieval'
+      );
+      Assert.areEqual(
+        writes,
+        Limits.getDmlStatements(),
+        'Reject without writes'
+      );
+      Assert.areEqual(
+        1100000,
+        callerAllocation.length(),
+        'Keep caller allocation live'
+      );
+      Test.stopTest();
+    }
+  }
+  @IsTest
+  static void invalidInputFailsClosed() {
+    User u = agent(true);
+    System.runAs(u) {
+      try {
+        CaseResolutionSummaryGrounding.prepare(
+          new List<CaseResolutionSummaryGrounding.Request>{
+            request(new Case())
+          }
+        );
+        Assert.fail('Must reject');
+      } catch (CaseResolutionSummaryGrounding.PreparationException e) {
+        Assert.isFalse(e.getMessage().contains('SELECT'));
+      }
+    }
+  }
+}
