@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "sales-target-preflight",
+      "type": "apex",
+      "file": "verify-existing-target-keys.apex",
+      "scopeMode": "selected_delivery",
+      "metadataBoundary": {
+        "after": [
+          "force-app/main/default/objects/Sales_Target_Mutex__c/Sales_Target_Mutex__c.object-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/fields/Lock_Key__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/fields/Machine_User__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target_Mutex__c/validationRules/System_Only_Singleton.validationRule-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/fields/Sales_Rep__c.field-meta.xml",
+          "force-app/main/default/objects/Sales_Target__c/validationRules/Active_Sales_Rep_On_Assignment.validationRule-meta.xml"
+        ],
+        "before": [
+          "force-app/main/default/objects/Sales_Target__c/validationRules/System_Fields_Protected.validationRule-meta.xml",
+          "force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml"
+        ]
+      }
+    },
+    {
+      "id": "sales-target-activate",
+      "disabled": true
+    }
+  ]
+}
