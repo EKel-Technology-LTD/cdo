@@ -20,20 +20,11 @@ DECLARATIONS = [n for n in TREE.body if isinstance(n, (ast.FunctionDef, ast.Clas
 DECLARATIONS += [n for n in TREE.body if isinstance(n, ast.Assign) and
                  any(isinstance(t, ast.Name) and t.id in {'STAGE_TWO_PROTECTION', 'PROTECTION_MESSAGE'} for t in n.targets)]
 USER = '005000000000001AAA'
-JOB = '08e000000000001AAA'
-ASYNC = '707000000000001AAA'
 
 def namespace():
     ns = {'dt': dt, 'json': json, 're': re, 'USER': USER, 'MACHINE': 'synthetic@example.invalid'}
     exec(compile(ast.Module(body=DECLARATIONS, type_ignores=[]), str(ACTIVATION), 'exec'), ns)
     return ns
-
-def job(**changes):
-    row = dict(Id=JOB, OwnerId=USER, TimeZoneSidKey='America/Los_Angeles',
-               CronExpression='0 0 2 * * ?', State='WAITING',
-               NextFireTime=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=1)).strftime('%Y-%m-%dT%H:%M:%S.000%z'))
-    row.update(changes)
-    return row
 
 class ActivationContract(unittest.TestCase):
     def setUp(self):
@@ -48,7 +39,7 @@ class ActivationContract(unittest.TestCase):
         action=next(a for a in actions if a['id']=='sales-target-activate')
         self.assertEqual('bash',action['type'])
         self.assertEqual('sales-target-activate.sh',action['file'])
-        self.assertEqual('data',action['deploymentEffect'])
+        self.assertEqual('none',action['deploymentEffect'])
         self.assertEqual('selected_delivery',action['scopeMode'])
         self.assertEqual(10,action['timeoutMinutes'])
         self.assertNotIn('metadataBoundary',action)
@@ -74,77 +65,13 @@ class ActivationContract(unittest.TestCase):
         self.assertIn('writesRemainQuiesced=True',BODY)
         self.assertIn('load_release_inputs()',BODY)
 
-    def test_readback_and_reaudit_follow_scheduling(self):
-        entry=next(n for n in TREE.body if isinstance(n,ast.Try))
-        text=ast.unparse(entry)
-        self.assertLess(text.index('load_release_inputs'),text.index('metadata_gates'))
-        self.assertLess(text.index('metadata_gates'),text.index('verify_active_flow'))
-        self.assertLess(text.index('audit_currencies(before'),text.index('SalesTargetActualsSchedulable.createOwnedSchedule('))
-        self.assertLess(text.index('verify_schedule_inventory()'),text.index('SalesTargetActualsSchedulable.createOwnedSchedule('))
-        self.assertLess(text.index('SalesTargetActualsSchedulable.createOwnedSchedule('),text.index('job = verify_schedule'))
-        self.assertLess(text.index('job = verify_schedule'),text.index('after = target_rows'))
-        self.assertIn('schedule_uncertain_readback',text)
-        self.assertIn('raise',text)
-
-    def test_single_owned_schedule_is_accepted(self):
-        self.assertEqual(JOB,self.ns['verify_schedule']([job()])['Id'])
-
-    def test_empty_schedule_is_not_success(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([])
-
-    def test_multiple_schedules_fail(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(),job()])
-
-    def test_other_owner_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(OwnerId='005000000000002AAA')])
-
-    def test_wrong_timezone_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(TimeZoneSidKey='GMT')])
-
-    def test_wrong_cron_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(CronExpression='0 0 3 * * ?')])
-
-    def test_nonwaiting_schedule_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(State='ERROR')])
-
-    def test_missing_fire_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(NextFireTime=None)])
-
-    def test_stale_fire_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(NextFireTime='2020-01-01T00:00:00Z')])
-
-    def test_unzoned_fire_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(NextFireTime='2099-01-01T00:00:00')])
-
-    def test_wrong_id_type_fails(self):
-        with self.assertRaises(self.error):self.ns['verify_schedule']([job(Id=USER)])
-
-    def test_verified_class_binding_passes(self):
-        self.ns['query']=Mock(side_effect=[
-            [dict(Id=ASYNC,ApexClass=dict(Name='SalesTargetActualsSchedulable'),CreatedById=USER)],
-            [dict(Id=JOB)], [dict(Id=ASYNC,CronTriggerId=JOB)]])
-        self.assertEqual([ASYNC],self.ns['verify_schedule_binding'](job()))
-
-    def test_wrong_class_binding_fails(self):
-        self.ns['query']=Mock(return_value=[dict(Id=ASYNC,ApexClass=dict(Name='OtherClass'),CreatedById=USER)])
-        with self.assertRaises(self.error):self.ns['verify_schedule_binding'](job())
-
-    def test_unproven_class_binding_fails(self):
-        self.ns['query']=Mock(return_value=[])
-        with self.assertRaises(self.error):self.ns['verify_schedule_binding'](job())
-
-    def test_alternate_named_schedule_blocks_before_write(self):
-        self.ns['query']=Mock(side_effect=[[dict(Id=JOB)],[dict(Id=ASYNC,CronTriggerId=JOB)]])
-        with self.assertRaises(self.error):self.ns['verify_schedule_inventory']()
-
-    def test_empty_inventory_allows_new_install(self):
-        self.ns['query']=Mock(side_effect=[[],[]])
-        self.ns['verify_schedule_inventory']()
-
-    def test_unrelated_jobs_are_preserved(self):
-        self.ns['query']=Mock(side_effect=[[dict(Id=JOB)],[]])
-        self.ns['verify_schedule_inventory']()
-        self.assertNotIn('System.abortJob(',BODY.split('except (GateError, subprocess.TimeoutExpired, ValueError, KeyError')[0])
+    def test_deployment_leaves_business_schedules_to_users(self):
+        for script in FOLDER.glob('*.sh'):
+            body=script.read_text().split("<<'PY'\n",1)[1]
+            for operation in ('CronTrigger', 'ScheduledApex', 'createOwnedSchedule(', 'stopOwnedSchedule(', 'System.schedule(', 'System.abortJob('):
+                self.assertNotIn(operation,body,script.name)
+        self.assertIn('flow_version = verify_active_flow()', BODY)
+        self.assertIn('audit_keys(after)', BODY)
 
     def test_active_flow_exact_contract(self):
         flow=ET.parse(ROOT/'force-app/main/default/flows/Sales_Target_Set_Unique_Key.flow-meta.xml')

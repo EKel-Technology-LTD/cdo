@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Orchard action runner only. Schedules only the authorized machine-owned daily job.
+# Orchard action runner only. Verifies installed protections and migrated keys. End users maintain business schedules in Salesforce.
 # No permission assignment, migration, metadata deployment or automatic writer resume.
-# Requires the separately provisioned DAILY_ACTUALS mutex bound to this machine;
-# createOwnedSchedule fails closed and never creates or repairs that record.
 # MANDATORY RELEASE PREREQUISITE (separately VERIFIED, never inferred):
 # Before any persistent mutex-record provisioning OR activation, the release owner
 # must retain exact-target evidence that Grant Access Using Hierarchies is disabled
@@ -350,34 +348,6 @@ def metadata_gates():
         else:
             require(metadata.get('type') == 'Text' and metadata.get('length') == 80 and metadata.get('unique') is True and metadata.get('caseSensitive') is False and metadata.get('externalId') is True, 'Unique key contract mismatch')
 
-def verify_schedule(rows):
-    job = one(rows, 'owned daily schedule')
-    require(job.get('OwnerId') == USER, 'Schedule owner is not the authorized machine')
-    require(job.get('TimeZoneSidKey') == 'America/Los_Angeles', 'Schedule timezone differs')
-    require(job.get('CronExpression') == '0 0 2 * * ?', 'Schedule cron differs')
-    require(job.get('State') == 'WAITING' and job.get('NextFireTime'), 'Schedule is not waiting with a next fire time')
-    sfid(job.get('Id'), '08e')
-    next_fire = salesforce_timestamp(job['NextFireTime'])
-    require(next_fire.tzinfo is not None and next_fire > dt.datetime.now(dt.timezone.utc), 'Next fire time is not a future zoned timestamp')
-    return job
-
-def schedule_rows():
-    return query("SELECT Id,OwnerId,TimeZoneSidKey,CronExpression,NextFireTime,State FROM CronTrigger WHERE CronJobDetail.Name = 'Sales Target Daily Actuals' AND State NOT IN ('DELETED','COMPLETE')", org=MACHINE)
-
-def verify_schedule_binding(job):
-    # API67 AsyncApexJob.CronTriggerId was reconciled through org describe.
-    bindings = query('SELECT Id,ApexClass.Name,CreatedById FROM AsyncApexJob WHERE JobType = \'ScheduledApex\' AND CronTriggerId = ' + quote(job['Id']), org=MACHINE)
-    require(bindings and all(r.get('ApexClass', {}).get('Name') == 'SalesTargetActualsSchedulable' and r.get('CreatedById') == USER for r in bindings), 'Named schedule is not proven to be the owned scheduler class')
-    verify_schedule_inventory(job['Id'])
-    return [sfid(r['Id'], '707') for r in bindings]
-
-def verify_schedule_inventory(expected_id=None):
-    active = query("SELECT Id FROM CronTrigger WHERE State NOT IN ('DELETED','COMPLETE')", org=MACHINE)
-    active_ids = {r['Id'] for r in active}
-    own = query("SELECT Id,CronTriggerId FROM AsyncApexJob WHERE JobType='ScheduledApex' AND ApexClass.Name='SalesTargetActualsSchedulable'", org=MACHINE)
-    expected = set() if expected_id is None else {expected_id}
-    require({r.get('CronTriggerId') for r in own if r.get('CronTriggerId') in active_ids} == expected, 'Another active actuals schedule exists; preserve it and resolve ownership before activation')
-
 def verify_active_flow():
     definition = one(query("SELECT Id,ActiveVersionId FROM FlowDefinition WHERE DeveloperName='Sales_Target_Set_Unique_Key' AND NamespacePrefix=null", True), 'key Flow definition')
     version = sfid(definition.get('ActiveVersionId'))
@@ -410,24 +380,12 @@ try:
     before = target_rows()
     require(not audit_keys(before), 'Activation requires zero blank, mismatched or duplicate keys')
     audit_currencies(before, today)
-    existing = schedule_rows()
-    if existing:
-        verify_schedule_binding(verify_schedule(existing))
-    else:
-        verify_schedule_inventory()
-        try:
-            apex("Id jobId=SalesTargetActualsSchedulable.createOwnedSchedule(); System.debug(LoggingLevel.ERROR,'ST_PREFLIGHT:'+JSON.serialize(jobId));")
-        except (GateError, subprocess.TimeoutExpired, ValueError):
-            emit('schedule_uncertain_readback', schedules=schedule_rows())
-            raise
-    job = verify_schedule(schedule_rows())
-    scheduled_apex_ids = verify_schedule_binding(job)
     after = target_rows()
     require({r['Id']:canonical(r) for r in before} == {r['Id']:canonical(r) for r in after} and not audit_keys(after), 'Targets changed during activation quiescence')
     audit_currencies(after, today)
     check_window()
-    emit('activation_verified', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, approvalReference=CONTEXT['approvalReference'], flowVersionId=flow_version, schedule=job, scheduledApexIds=scheduled_apex_ids, targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, resume='Authorized operations owner may now end the approved write-quiescence window; this action does not change access or maintenance controls.')
+    emit('activation_verified', orgId=ORG, artifactSha=CONTEXT['artifactSha'], targetFingerprint=CONTEXT['targetFingerprint'], machineUserId=USER, operationsOwnerId=owner, approvalReference=CONTEXT['approvalReference'], flowVersionId=flow_version, targets=len(after), blankKeys=0, mismatchedKeys=0, duplicateKeys=0, writesRemainQuiesced=True, resume='Authorized operations owner may now end the approved write-quiescence window; this action does not change access or maintenance controls.')
 except (GateError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, OSError) as exc:
-    emit('blocked', reason=str(exc) if isinstance(exc, GateError) else type(exc).__name__, writesRemainQuiesced=True, retry='Do not replay uncertain scheduling. Read the exact owned job; preserve unrelated jobs and successful actuals. A separately approved rollback stops only the verified owned CronTrigger ID with SalesTargetActualsSchedulable.stopOwnedSchedule() under the machine identity. Recovery uses SalesTargetActualsSchedulable.launch().')
+    emit('blocked', reason=str(exc) if isinstance(exc, GateError) else type(exc).__name__, writesRemainQuiesced=True, retry='Correct the reported release prerequisite and rerun verification within an approved window.')
     sys.exit(1)
 PY
