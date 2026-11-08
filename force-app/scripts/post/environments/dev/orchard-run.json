@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "sales-target-preflight",
+      "disabled": true
+    },
+    {
+      "id": "sales-target-activate",
+      "disabled": true
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 Salesforce DX project created with Orchard. CDO is a **sandbox project**: work is built in sandboxes copied from the connected production org, not in scratch orgs.
 
-- `force-app/` holds the metadata. Orchard's pre- and post-deployment actions live in `force-app/scripts/` and `force-app/data/`, under `common/` or `environments/<stage>/` for the release stages in use (QA, UAT).
+- `force-app/` holds the metadata. Orchard's pre- and post-deployment actions live in `force-app/scripts/` and `force-app/data/`, under `common/` or `environments/<stage>/` for the release stages in use (QA, UAT). After each merge Orchard also deploys `main` to its Dev and CI template sandboxes (`environments/dev`, `environments/ci`). Those deploys cannot run release-authorized scripts or scripts that split the metadata deployment, so turn such scripts off there.
 - `npm ci` installs the lint, format and test tools. `npm run lint`, `npm test` and `npm run prettier:verify` are the checks Orchard's agents run.
 
 Work against a sandbox on your machine:
