@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Orchard_CLI_Probe_4__c</fullName>
+    <description>Metadata candidate for the fourth Orchard brokered Salesforce CLI verification probe.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Reserved for the Orchard CLI verification probe; leave blank for business records.</inlineHelpText>
+    <label>Orchard CLI Probe 4</label>
+    <length>50</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>
