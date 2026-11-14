@@ -1,4 +1,4 @@
-@IsTest
+@IsTest(testFor='ApexClass:OrchardDirectProbe2')
 private class OrchardDirectProbe2Test {
     @IsTest
     static void nullReturnsZero() {
