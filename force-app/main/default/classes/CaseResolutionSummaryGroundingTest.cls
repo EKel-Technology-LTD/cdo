@@ -1,4 +1,4 @@
-@IsTest
+@IsTest(testFor='ApexClass:CaseResolutionSummaryGrounding')
 private class CaseResolutionSummaryGroundingTest {
   @IsTest
   static void inspectWholeEntryBeforeTruncation() {
