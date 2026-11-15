@@ -45,10 +45,12 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.assertNotIn('reviewPrerequisite', action)
 
     def test_post_actions_only_read_and_production_is_manual(self):
-        self.assertEqual(['verify-case-summary-template', 'verify-case-summary-page'], list(self.by_id))
-        self.assertEqual({'none'}, {action['deploymentEffect'] for action in self.actions})
+        # The common file also carries other features' actions (Sales Target); this contract covers Case Summary's.
+        case_ids = ['verify-case-summary-template', 'verify-case-summary-page']
+        self.assertEqual(case_ids, [action_id for action_id in self.by_id if action_id.startswith('verify-case-summary')])
+        self.assertEqual({'none'}, {self.by_id[action_id]['deploymentEffect'] for action_id in case_ids})
         production = json.loads((ROOT / 'force-app/scripts/post/environments/production/orchard-run.json').read_text())['actions']
-        self.assertEqual({(action_id, True) for action_id in self.by_id}, {(a['id'], a.get('disabled')) for a in production})
+        self.assertLessEqual({(action_id, True) for action_id in case_ids}, {(a['id'], a.get('disabled')) for a in production})
 
     def test_page_readback_is_an_ordinary_post_action(self):
         action = self.by_id['verify-case-summary-page']
