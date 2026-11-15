@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "actions": [
+    { "id": "verify-case-summary-template", "disabled": true },
+    { "id": "verify-case-summary-page", "disabled": true }
+  ]
+}
