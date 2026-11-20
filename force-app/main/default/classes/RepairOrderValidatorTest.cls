@@ -1,6 +1,8 @@
 /** Synthetic-only save-contract tests. Persona effective-access/UI evidence belongs to QA. */
-@IsTest
+@IsTest(testFor='ApexClass:RepairOrderValidator,ApexTrigger:RepairOrderValidation')
 private with sharing class RepairOrderValidatorTest {
+    private static final String PICKUP_ERROR =
+        'Please enter Completed Date before setting Repair Status to Ready for Pickup.';
     private static final String FAULT_ERROR = 'Please enter the fault description.';
     private static final String REASON_ERROR =
         'When "Unrepairable" or "Cancelled", please state the reason in Diagnosis Result.';
@@ -293,5 +295,108 @@ private with sharing class RepairOrderValidatorTest {
     @IsTest static void nullBatchIsSafe() {
         Test.startTest(); RepairOrderValidator.validate(null); Test.stopTest();
         Assert.areEqual(null,RepairOrderValidator.corporateConfiguration,'Null batch does not query configuration');
+    }
+
+    @IsTest static void pickupInsertRequiresCompletionDate() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order();
+        order.Repair_Status__c='Ready_for_Pickup';
+        Test.startTest(); Database.SaveResult result=Database.insert(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
+        assertError(result,'Repair_Completed_Date__c',PICKUP_ERROR);
+        Assert.areEqual(0,[SELECT COUNT() FROM Repair_Order__c WITH SYSTEM_MODE],'Undated pickup is not inserted');
+    }
+    @IsTest static void datedPickupInsertSucceedsForEveryIntake() {
+        Fixtures fixtures=new Fixtures(); List<Repair_Order__c> orders=new List<Repair_Order__c>();
+        for(String intake:new List<String>{'Store_Dropoff','Courier_Pickup','Onsite'}) {
+            Repair_Order__c order=fixtures.order(); order.Intake_Method__c=intake;
+            order.Repair_Status__c='Ready_for_Pickup'; order.Repair_Completed_Date__c=Date.today(); orders.add(order);
+        }
+        Test.startTest(); List<Database.SaveResult> results=Database.insert(orders,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
+        for(Database.SaveResult result:results) {Assert.isTrue(result.isSuccess(),'Dated pickup requires no shipping tracking');}
+        Assert.areEqual(3,[SELECT COUNT() FROM Repair_Order__c WHERE Repair_Status__c='Ready_for_Pickup' AND Repair_Completed_Date__c=TODAY WITH SYSTEM_MODE],'All intake methods persist pickup');
+    }
+    @IsTest static void pickupUpdateWithoutDatePreservesStatus() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order(); insert as system order;
+        order.Repair_Status__c='Ready_for_Pickup';
+        Test.startTest(); Database.SaveResult result=Database.update(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
+        assertError(result,'Repair_Completed_Date__c',PICKUP_ERROR);
+        Repair_Order__c actual=saved(order.Id);
+        Assert.areEqual('Awaiting_Receipt',actual.Repair_Status__c,'Rejected pickup preserves status');
+        Assert.areEqual(null,actual.Repair_Completed_Date__c,'Rejected pickup does not invent a completion date');
+    }
+    @IsTest static void pickupAndCompletionDateCanBeSetTogether() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order(); insert as system order;
+        order.Repair_Status__c='Ready_for_Pickup'; order.Repair_Completed_Date__c=Date.today();
+        Test.startTest(); Database.SaveResult result=Database.update(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
+        Assert.isTrue(result.isSuccess(),'Date and pickup can be set in the same save');
+        Repair_Order__c actual=saved(order.Id);
+        Assert.areEqual('Ready_for_Pickup',actual.Repair_Status__c,'Pickup persists');
+        Assert.areEqual(Date.today(),actual.Repair_Completed_Date__c,'Completion date persists');
+    }
+    @IsTest static void pickupUpdateWithExistingCompletionDateSucceeds() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order();
+        order.Repair_Status__c='Repaired'; order.Repair_Completed_Date__c=Date.today(); insert as system order;
+        Test.startTest();
+        Database.SaveResult result=Database.update(new Repair_Order__c(Id=order.Id,Repair_Status__c='Ready_for_Pickup'),false,AccessLevel.SYSTEM_MODE);
+        Test.stopTest();
+        Assert.isTrue(result.isSuccess(),'Existing completion date allows status-only transition');
+        Repair_Order__c actual=saved(order.Id);
+        Assert.areEqual('Ready_for_Pickup',actual.Repair_Status__c,'Pickup persists');
+        Assert.areEqual(Date.today(),actual.Repair_Completed_Date__c,'Existing completion date retained');
+    }
+    @IsTest static void pickupCompletionDateCannotBeCleared() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order();
+        order.Repair_Status__c='Ready_for_Pickup'; order.Repair_Completed_Date__c=Date.today(); insert as system order;
+        Test.startTest();
+        Database.SaveResult result=Database.update(new Repair_Order__c(Id=order.Id,Repair_Completed_Date__c=null),false,AccessLevel.SYSTEM_MODE);
+        Test.stopTest();
+        assertError(result,'Repair_Completed_Date__c',PICKUP_ERROR);
+        Repair_Order__c actual=saved(order.Id);
+        Assert.areEqual('Ready_for_Pickup',actual.Repair_Status__c,'Unchanged pickup status remains');
+        Assert.areEqual(Date.today(),actual.Repair_Completed_Date__c,'Rejected removal preserves completion date');
+    }
+    @IsTest static void pickupPreservesCompletionDateOrdering() {
+        Fixtures fixtures=new Fixtures(); Repair_Order__c order=fixtures.order();
+        order.Repair_Status__c='Ready_for_Pickup'; order.Received_Date__c=Date.today();
+        order.Repair_Completed_Date__c=Date.today().addDays(-1);
+        Test.startTest(); Database.SaveResult result=Database.insert(order,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
+        assertError(result,'Repair_Completed_Date__c','Completed Date cannot be earlier than Received Date.');
+    }
+    @IsTest static void pickupAndRepairedHaveFinishedFormulaParity() {
+        Fixtures fixtures=new Fixtures(); List<Repair_Order__c> orders=new List<Repair_Order__c>();
+        for(String status:new List<String>{'Repaired','Ready_for_Pickup'}) {
+            Repair_Order__c order=fixtures.order(); order.Repair_Status__c=status;
+            order.Received_Date__c=Date.today().addDays(-8); order.Repair_Completed_Date__c=Date.today();
+            order.Warranty_Coverage__c='Out_Of_Warranty'; orders.add(order);
+        }
+        Test.startTest(); insert as system orders; Test.stopTest();
+        List<Repair_Order__c> actual=[SELECT Repair_Status__c,Is_Overdue__c,Turnaround_Days__c FROM Repair_Order__c WITH SYSTEM_MODE];
+        Assert.areEqual(2,actual.size(),'Both finished statuses save without quote approval or tracking');
+        for(Repair_Order__c order:actual) {
+            Assert.isFalse(order.Is_Overdue__c,'Finished status is not overdue: '+order.Repair_Status__c);
+            Assert.areEqual(8,order.Turnaround_Days__c,'Finished status retains exact turnaround');
+        }
+    }
+    @IsTest static void bulkPickup200Has195SuccessesAnd5DateFailures() {
+        Fixtures fixtures=new Fixtures(); List<Repair_Order__c> orders=new List<Repair_Order__c>();
+        for(Integer i=0;i<200;i++) {
+            Repair_Order__c order=fixtures.order(); order.Repair_Status__c='Ready_for_Pickup';
+            if(i>=5) {order.Repair_Completed_Date__c=Date.today();} orders.add(order);
+        }
+        Assert.areEqual(null,RepairOrderValidator.corporateConfiguration,'Pickup import starts with cold cache');
+        Test.startTest();
+        List<Database.SaveResult> results=Database.insert(orders,false,AccessLevel.SYSTEM_MODE);
+        Integer queries=Limits.getQueries(); Test.stopTest();
+        Assert.areEqual(200,results.size(),'Every pickup row has a result');
+        Integer successes=0; Integer failures=0;
+        for(Integer i=0;i<results.size();i++) {
+            if(i<5) {assertError(results[i],'Repair_Completed_Date__c',PICKUP_ERROR); failures++;}
+            else {Assert.isTrue(results[i].isSuccess(),'Dated pickup row '+i+' saves'); successes++;}
+        }
+        Assert.areEqual(195,successes,'Exact successful pickup rows'); Assert.areEqual(5,failures,'Exact missing-date failures');
+        Assert.areEqual(195,[SELECT COUNT() FROM Repair_Order__c WITH SYSTEM_MODE],'Only valid rows persist');
+        Assert.areEqual(195,[SELECT COUNT() FROM Repair_Order__c WHERE Repair_Status__c='Ready_for_Pickup' AND Repair_Completed_Date__c=TODAY WITH SYSTEM_MODE],'Every persisted pickup has its date');
+        Assert.isTrue(queries <= 1,'At most one governor-counted configuration query');
+        Assert.areEqual(1,RepairOrderValidator.corporateConfigQueryCount,'Exactly one actual query across partial-save retries');
+        Assert.areEqual(fixtures.corporateIsoCode,RepairOrderValidator.corporateConfiguration[0].IsoCode,'Real corporate configuration remains cached');
     }
 }

@@ -29,6 +29,10 @@ public with sharing class RepairOrderValidator {
             if (String.isBlank(order.Repair_Status__c)) {
                 order.Repair_Status__c.addError('Please select a repair status.');
             }
+            if (order.Repair_Status__c == 'Ready_for_Pickup' && order.Repair_Completed_Date__c == null) {
+                order.Repair_Completed_Date__c.addError(
+                    'Please enter Completed Date before setting Repair Status to Ready for Pickup.');
+            }
             if ((order.Repair_Status__c == 'Unrepairable' || order.Repair_Status__c == 'Cancelled')
                 && String.isBlank(order.Diagnosis_Result__c)) {
                 order.Diagnosis_Result__c.addError(
