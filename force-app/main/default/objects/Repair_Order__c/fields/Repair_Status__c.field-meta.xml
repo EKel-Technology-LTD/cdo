@@ -45,6 +45,11 @@
                 <label>Repaired</label>
             </value>
             <value>
+                <fullName>Ready_for_Pickup</fullName>
+                <default>false</default>
+                <label>Ready for Pickup</label>
+            </value>
+            <value>
                 <fullName>Shipped_Back</fullName>
                 <default>false</default>
                 <label>Shipped Back</label>
