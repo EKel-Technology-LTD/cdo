@@ -40,8 +40,6 @@ public without sharing class DiscountApprovalHandler {
         }
         for (Opportunity record : records) {
             Opportunity old = previous.get(record.Id);
-            if (record.Discount_Percent__c != null && record.Discount_Percent__c >= 10 && String.isBlank(record.Discount_Reason__c))
-                record.Discount_Reason__c.addError('Enter a Discount Reason for a discount of 10% or more.');
             if (DiscountApprovalService.writingOutcome != true) {
                 for (String field : PROTECTED_FIELDS) {
                     if (record.get(field) != (old == null ? null : old.get(field))) {
