@@ -2,7 +2,7 @@
 <ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Warranty_Months_Range</fullName>
     <active>true</active>
-    <errorConditionFormula>AND(NOT(ISBLANK(Warranty_Months__c)), OR(Warranty_Months__c &lt; 0, Warranty_Months__c &gt; 60))</errorConditionFormula>
+    <errorConditionFormula>OR(AND(NOT(ISBLANK(Warranty_Months__c)), OR(Warranty_Months__c &lt; 0, Warranty_Months__c &gt; 60)),AND(ISPICKVAL(Product_Line__c,"Air_Conditioner"),ISBLANK(Warranty_Months__c)))</errorConditionFormula>
     <errorDisplayField>Warranty_Months__c</errorDisplayField>
-    <errorMessage>保固月數必須介於 0 到 60 個月。</errorMessage>
+    <errorMessage>保固月數必須介於 0 到 60 個月；冷氣機必須填寫保固月數。</errorMessage>
 </ValidationRule>

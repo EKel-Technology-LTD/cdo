@@ -30,6 +30,12 @@
         <default>false</default>
         <label>服務方案</label>
     </customValue>
+    <customValue>
+        <fullName>Air_Conditioner</fullName>
+        <default>false</default>
+        <isActive>true</isActive>
+        <label>Air Conditioner</label>
+    </customValue>
     <masterLabel>產品線</masterLabel>
     <sorted>false</sorted>
 </GlobalValueSet>

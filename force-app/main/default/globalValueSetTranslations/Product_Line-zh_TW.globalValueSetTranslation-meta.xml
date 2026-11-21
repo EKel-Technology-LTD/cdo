@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSetTranslation xmlns="http://soap.sforce.com/2006/04/metadata">
+    <valueTranslation>
+        <masterLabel>吸塵器</masterLabel>
+        <translation><!-- 吸塵器 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>服務方案</masterLabel>
+        <translation><!-- 服務方案 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>淨水器</masterLabel>
+        <translation><!-- 淨水器 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>空氣清淨機</masterLabel>
+        <translation><!-- 空氣清淨機 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>耗材與配件</masterLabel>
+        <translation><!-- 耗材與配件 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>除濕機</masterLabel>
+        <translation><!-- 除濕機 --></translation>
+    </valueTranslation>
+    <valueTranslation>
+        <masterLabel>Air Conditioner</masterLabel>
+        <translation>冷氣機</translation>
+    </valueTranslation>
+</GlobalValueSetTranslation>
