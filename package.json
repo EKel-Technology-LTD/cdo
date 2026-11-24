@@ -5,7 +5,7 @@
   "description": "Salesforce App",
   "scripts": {
     "lint": "eslint **/{aura,lwc}/**/*.js",
-    "test": "npm run test:migration && npm run test:actuals && npm run test:unit",
+    "test": "npm run test:migration && npm run test:actuals && npm run test:case-summary && npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",
     "test:unit:debug": "sfdx-lwc-jest --debug",
@@ -15,7 +15,8 @@
     "prepare": "husky || true",
     "precommit": "lint-staged",
     "test:migration": "python3 -B tools/test_sales_target_migration.py",
-    "test:actuals": "python3 -B tools/test_sales_target_actuals.py"
+    "test:actuals": "python3 -B tools/test_sales_target_actuals.py",
+    "test:case-summary": "python3 -B tools/test_case_summary_verify.py && python3 -B -m unittest discover -s force-app/scripts/tests -p 'test_case_summary_deployment.py'"
   },
   "devDependencies": {
     "@lwc/eslint-plugin-lwc": "^3.1.0",
