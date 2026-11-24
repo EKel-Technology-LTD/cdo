@@ -15,7 +15,8 @@
     "prepare": "husky || true",
     "precommit": "lint-staged",
     "test:migration": "python3 -B tools/test_sales_target_migration.py",
-    "test:actuals": "python3 -B tools/test_sales_target_actuals.py"
+    "test:actuals": "python3 -B tools/test_sales_target_actuals.py",
+    "test:case-summary": "python3 -B tools/test_case_summary_verify.py"
   },
   "devDependencies": {
     "@lwc/eslint-plugin-lwc": "^3.1.0",
