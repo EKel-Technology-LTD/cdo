@@ -26,8 +26,9 @@ private with sharing class DiscountApprovalTest {
     @IsTest static void missingReasonRejected() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);deal.Discount_Reason__c=null;
         Test.startTest(); Database.SaveResult result=Database.insert(deal,false,AccessLevel.SYSTEM_MODE); Test.stopTest();
-        Assert.isFalse(result.isSuccess(),'Reason must be required');
-        Assert.isTrue(result.getErrors()[0].getMessage().contains('Discount Reason'),'Reason message');
+        assertFieldValidation(result,'Enter a Discount Reason for a discount of 15% or more.','Discount_Reason__c');
+        Assert.areEqual(0,[SELECT COUNT() FROM Discount_Approval__c WITH SYSTEM_MODE],'Failed insert creates no cycle');
+        Assert.areEqual(0,[SELECT COUNT() FROM Task WITH SYSTEM_MODE],'Failed insert creates no task');
     }
     @IsTest static void managerTask() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);
@@ -266,14 +267,112 @@ private with sharing class DiscountApprovalTest {
         Test.stopTest();
     }
     @IsTest static void invalidPercentRejected() {
-        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(101,100000);
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(41,100000);
         Test.startTest();Database.SaveResult result=Database.insert(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
-        assertValidation(result,'Discount % must be between 0% and 100%.');
+        assertFieldValidation(result,'Discount % must be between 0% and 40%.','Discount_Percent__c');
     }
     @IsTest static void negativePercentRejected() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(-1,100000);
         Test.startTest();Database.SaveResult result=Database.insert(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
-        assertValidation(result,'Discount % must be between 0% and 100%.');
+        assertFieldValidation(result,'Discount % must be between 0% and 40%.','Discount_Percent__c');
+    }
+    @IsTest static void fortyPercentInsert() { assertSavedDiscount(40,'Approved commercial terms',60000,'Executive',false); }
+    @IsTest static void fortyPercentUpdate() { assertSavedDiscount(40,'Approved commercial terms',60000,'Executive',true); }
+    @IsTest static void fifteenPercentFormulaInsert() { assertSavedDiscount(15,'Multi-year agreement',85000,'Manager',false); }
+    @IsTest static void fifteenPercentFormulaUpdate() { assertSavedDiscount(15,'Multi-year agreement',85000,'Manager',true); }
+    @IsTest static void zeroPercentFormulaInsert() { assertSavedDiscount(0,null,100000,null,false); }
+    @IsTest static void zeroPercentFormulaUpdate() { assertSavedDiscount(0,null,100000,null,true); }
+    @IsTest static void belowFifteenBlankReasonInsert() { assertSavedDiscount(14.99,null,85010,'Manager',false); }
+    @IsTest static void belowFifteenBlankReasonUpdate() { assertSavedDiscount(14.99,null,85010,'Manager',true); }
+    @IsTest static void tenPercentBlankReasonInsert() { assertSavedDiscount(10,null,90000,'Manager',false); }
+    @IsTest static void tenPercentBlankReasonUpdate() { assertSavedDiscount(10,null,90000,'Manager',true); }
+    @IsTest static void belowTenBlankReasonInsert() { assertSavedDiscount(9.99,null,90010,null,false); }
+    @IsTest static void belowTenBlankReasonUpdate() { assertSavedDiscount(9.99,null,90010,null,true); }
+    @IsTest static void blankDiscountInsert() { assertSavedDiscount(null,null,100000,null,false); }
+    @IsTest static void blankDiscountUpdate() { assertSavedDiscount(null,null,100000,null,true); }
+    private static void assertSavedDiscount(Decimal discount,String reason,Decimal netAmount,String route,Boolean updating) {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(updating ? 5 : discount,100000);
+        deal.Discount_Reason__c=reason;
+        if (updating) insert as system deal;
+        deal.Discount_Percent__c=discount;
+        Test.startTest();
+        if (updating) update as system deal;
+        else insert as system deal;
+        Test.stopTest();
+        Opportunity saved=[SELECT Discount_Percent__c,Discount_Reason__c,Amount_After_Discount__c,
+            Discount_Approval_Status__c,Discount_Approval_Route__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE];
+        Assert.areEqual(discount,saved.Discount_Percent__c,'Discount persisted unchanged');
+        Assert.areEqual(reason,saved.Discount_Reason__c,'Reason persisted unchanged');
+        Assert.areEqual(netAmount,saved.Amount_After_Discount__c,'Amount After Discount');
+        Assert.areEqual(route,saved.Discount_Approval_Route__c,'Routing is independent of reason threshold');
+        Assert.areEqual(route==null ? 'Not Required' : 'Pending',saved.Discount_Approval_Status__c,'Approval status');
+        List<Discount_Approval__c> cycles=[SELECT Status__c,Route__c,Discount_Reason__c,Approver__c
+            FROM Discount_Approval__c WHERE Opportunity__c=:deal.Id WITH SYSTEM_MODE];
+        List<Task> tasks=[SELECT OwnerId,Status,Priority FROM Task WHERE WhatId=:deal.Id WITH SYSTEM_MODE];
+        Assert.areEqual(route==null ? 0 : 1,cycles.size(),'One cycle only when approval required');
+        Assert.areEqual(cycles.size(),tasks.size(),'One task per cycle');
+        if (route!=null) {
+            Assert.areEqual('Pending',cycles[0].Status__c,'Cycle pending');
+            Assert.areEqual(route,cycles[0].Route__c,'Cycle route');
+            Assert.areEqual(reason,cycles[0].Discount_Reason__c,'Cycle reason snapshot');
+            Id manager=DiscountApprovalTestDataFactory.persona('manager').Id;
+            if (route=='Manager') Assert.areEqual(manager,cycles[0].Approver__c,'Captured manager');
+            Assert.areEqual(manager,tasks[0].OwnerId,'Manager task owner');
+            Assert.areEqual('Not Started',tasks[0].Status,'Task open');
+            Assert.areEqual('High',tasks[0].Priority,'Task priority preserved');
+        }
+    }
+    @IsTest static void aboveCapUpdateRejected() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(40,100000);insert as system deal;
+        Id cycleId=DiscountApprovalTestDataFactory.pending(deal.Id).Id;
+        Test.startTest();deal.Discount_Percent__c=41;
+        Database.SaveResult result=Database.update(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
+        assertFieldValidation(result,'Discount % must be between 0% and 40%.','Discount_Percent__c');
+        Assert.areEqual(40,[SELECT Discount_Percent__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE].Discount_Percent__c,'Failed update preserves discount');
+        Assert.areEqual(cycleId,DiscountApprovalTestDataFactory.pending(deal.Id).Id,'Failed update preserves current cycle');
+        Assert.areEqual(1,[SELECT COUNT() FROM Task WHERE WhatId=:deal.Id WITH SYSTEM_MODE],'No extra task');
+    }
+    @IsTest static void missingReasonUpdateRejected() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(14.99,100000);deal.Discount_Reason__c=null;insert as system deal;
+        Id cycleId=DiscountApprovalTestDataFactory.pending(deal.Id).Id;
+        Test.startTest();deal.Discount_Percent__c=15;
+        Database.SaveResult result=Database.update(deal,false,AccessLevel.SYSTEM_MODE);Test.stopTest();
+        assertFieldValidation(result,'Enter a Discount Reason for a discount of 15% or more.','Discount_Reason__c');
+        Assert.areEqual(14.99,[SELECT Discount_Percent__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE].Discount_Percent__c,'Failed update preserves discount');
+        Assert.areEqual(cycleId,DiscountApprovalTestDataFactory.pending(deal.Id).Id,'No replacement cycle');
+        Assert.areEqual(1,[SELECT COUNT() FROM Task WHERE WhatId=:deal.Id WITH SYSTEM_MODE],'No extra task');
+    }
+    @IsTest static void managerApprovesBlankReasonBelowFifteen() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(14.99,100000);deal.Discount_Reason__c=null;insert as system deal;
+        Discount_Approval__c cycle=DiscountApprovalTestDataFactory.pending(deal.Id);
+        Test.startTest();
+        System.runAs(DiscountApprovalTestDataFactory.persona('manager')) { DiscountApprovalService.decide(cycle.Id,'Approved','Acceptable margin'); }
+        Test.stopTest();
+        Opportunity saved=[SELECT Discount_Approval_Status__c,Discount_Reason__c,Discount_Decided_By__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE];
+        Assert.areEqual('Approved',saved.Discount_Approval_Status__c,'Blank ordinary-save reason permits manager decision');
+        Assert.isNull(saved.Discount_Reason__c,'Decision does not invent a reason');
+        Assert.areEqual(DiscountApprovalTestDataFactory.persona('manager').Id,saved.Discount_Decided_By__c,'Captured manager decides');
+        Assert.areEqual('Approved',[SELECT Status__c FROM Discount_Approval__c WHERE Id=:cycle.Id WITH SYSTEM_MODE].Status__c,'Cycle approved');
+        Assert.areEqual('Completed',[SELECT Status FROM Task WHERE Id=:cycle.Manager_Task_Id__c WITH SYSTEM_MODE].Status,'Task completed');
+    }
+    @IsTest static void blankReasonBelowFifteenCannotResubmit() {
+        Opportunity deal=DiscountApprovalTestDataFactory.opportunity(10,100000);insert as system deal;
+        Id cycleId=DiscountApprovalTestDataFactory.pending(deal.Id).Id;
+        System.runAs(DiscountApprovalTestDataFactory.persona('manager')) { DiscountApprovalService.decide(cycleId,'Rejected','Revise terms'); }
+        deal.Discount_Reason__c=null;update as system deal;
+        Test.startTest();
+        System.runAs(DiscountApprovalTestDataFactory.persona('rep')) {
+            try { DiscountApprovalService.resubmit(deal.Id);Assert.fail('Resubmission still requires a nonblank reason'); }
+            catch (AuraHandledException error) { Assert.areEqual('Enter a different Discount Reason before resubmitting.',error.getMessage(),'Lifecycle reason policy preserved'); }
+        }
+        Test.stopTest();
+        Assert.areEqual('Rejected',[SELECT Discount_Approval_Status__c FROM Opportunity WHERE Id=:deal.Id WITH SYSTEM_MODE].Discount_Approval_Status__c,'Rejected state preserved');
+        Assert.areEqual(1,[SELECT COUNT() FROM Discount_Approval__c WHERE Opportunity__c=:deal.Id WITH SYSTEM_MODE],'No resubmission cycle');
+        Assert.areEqual(1,[SELECT COUNT() FROM Task WHERE WhatId=:deal.Id WITH SYSTEM_MODE],'No resubmission task');
+    }
+    private static void assertFieldValidation(Database.SaveResult result,String message,String field) {
+        assertValidation(result,message);
+        Assert.areEqual(new List<String>{field},result.getErrors()[0].getFields(),'Error appears on the intended field');
     }
     @IsTest static void approvedReasonChangeInvalidates() {
         Opportunity deal=DiscountApprovalTestDataFactory.opportunity(15,100000);insert as system deal;
