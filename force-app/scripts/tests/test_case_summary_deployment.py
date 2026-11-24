@@ -59,16 +59,15 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         self.assertNotIn('CustomApplication:', activation)
         verification = embedded_python(action['file'])
         self.assertIn('CustomApplication:standard__LightningService', verification)
-        self.assertIn('semantic(expected_app)!=semantic(actual_app)', verification)
+        self.assertIn('check_page(ET.parse(apps[0]).getroot())', verification)
         self.assertNotIn("'deploy'", verification)
         self.assertNotIn("'create'", verification)
 
     def test_template_verification_uses_retrieved_version_without_mutation(self):
         source = embedded_python('case-summary-verify-template.sh')
-        self.assertIn("version=matches[0].findtext('m:versionIdentifier'", source)
+        self.assertIn('version=check_template(ET.parse(paths[0]).getroot())', source)
         self.assertNotIn("'deploy'", source)
         self.assertNotIn("'create'", source)
-        self.assertIn('satisfies(v,expected_version)', source)
 
     def test_inactive_template_fails_without_an_activation_write(self):
         calls = []
@@ -89,10 +88,12 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
         old_cwd = Path.cwd()
         try:
             os.chdir(ROOT)
-            with patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']), contextlib.redirect_stderr(io.StringIO()):
+            with patch('subprocess.run', side_effect=fake_sf), patch('sys.argv', ['-', 'synthetic-org']), contextlib.redirect_stderr(io.StringIO()) as err:
                 with self.assertRaises(SystemExit) as error:
-                    exec(compile(embedded_python('case-summary-verify-template.sh'), 'template-verification', 'exec'), {})
+                    exec(compile(embedded_python('case-summary-verify-template.sh'), 'template-verification', 'exec'), {'__name__': '__main__'})
             self.assertEqual(1, error.exception.code)
+            self.assertIn('Pinned source version is not active', err.getvalue())
+            self.assertEqual([['data', 'query'], ['project', 'retrieve']], [args[1:3] for args in calls])
             self.assertFalse(any(args[1:3] == ['project', 'deploy'] for args in calls))
         finally:
             os.chdir(old_cwd)
@@ -172,10 +173,19 @@ class CaseSummaryDeploymentContractTest(unittest.TestCase):
                     out, err = io.StringIO(), io.StringIO()
                     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                         try:
-                            exec(compile(embedded_python(name), name, 'exec'), {})
+                            exec(compile(embedded_python(name), name, 'exec'), {'__name__': '__main__'})
                         except SystemExit as error:
                             self.fail(f'{name} exited {error.code}: {err.getvalue()}')
-                    self.assertIn('orgId', json.loads(out.getvalue()))
+                    receipt = json.loads(out.getvalue())
+                    self.assertEqual('00D000000000001EAA', receipt['orgId'])
+                    self.assertIs(True, receipt['verified'])
+                    if name == 'case-summary-verify-template.sh':
+                        expected = ET.parse(ROOT / (BASE + 'genAiPromptTemplates/Case_Resolution_Summary.genAiPromptTemplate-meta.xml'))
+                        self.assertEqual(expected.findtext('m:activeVersionIdentifier', namespaces=NS), receipt['activeVersionIdentifier'])
+                        self.assertEqual('synthetic-read-receipt', receipt['retrieveId'])
+                    else:
+                        self.assertEqual('Case_Record_Page', receipt['page'])
+                        self.assertEqual('synthetic-read-receipt', receipt['applicationRetrieveId'])
         finally:
             os.chdir(old_cwd)
 
