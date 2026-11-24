@@ -76,10 +76,10 @@ private class CaseResolutionTest {
             expectError(Database.update(duplicateCase, false), PARENT_ERROR);
         }
     }
-    @IsTest static void allSixProductLines() {
+    @IsTest static void allSevenProductLines() {
         List<Case> cases = new List<Case>();
         Set<String> expected = new Set<String>{'Air_Purifier', 'Dehumidifier', 'Vacuum_Cleaner',
-            'Water_Purifier', 'Accessory', 'Service_Plan'};
+            'Water_Purifier', 'Accessory', 'Service_Plan', 'Air_Conditioner'};
         Set<String> actual = new Set<String>();
         for (Schema.PicklistEntry entry : Case.Product_Line__c.getDescribe().getPicklistValues()) {
             if (entry.isActive()) { actual.add(entry.getValue()); }
@@ -91,7 +91,7 @@ private class CaseResolutionTest {
             cases.add(c);
         }
         insert cases;
-        Assert.areEqual(6, [SELECT count() FROM Case WHERE Id IN :cases]);
+        Assert.areEqual(7, [SELECT count() FROM Case WHERE Id IN :cases]);
     }
     @IsTest static void bulkClosedCases195SucceedFiveFail() {
         List<Case> cases = new List<Case>();
