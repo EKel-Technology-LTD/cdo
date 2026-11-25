@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Demo_Sync_Check_Note__c</fullName>
+    <description>Created by a synthetic Orchard QA item. Not a business field.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Synthetic QA field. Safe to ignore.</inlineHelpText>
+    <label>Demo Sync Check Note</label>
+    <length>80</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

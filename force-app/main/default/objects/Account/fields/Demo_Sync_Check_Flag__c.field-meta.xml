@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Demo_Sync_Check_Flag__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>Created by a synthetic Orchard QA item. Not a business field.</description>
+    <label>Demo Sync Check Flag</label>
+    <type>Checkbox</type>
+</CustomField>
