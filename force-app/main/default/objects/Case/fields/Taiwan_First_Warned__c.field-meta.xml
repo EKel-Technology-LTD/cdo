@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Taiwan_First_Warned__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>Never reset after committed warning.</inlineHelpText>
+    <label>Taiwan first response warning sent</label>
+    <type>Checkbox</type>
+</CustomField>

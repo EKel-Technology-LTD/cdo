@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Taiwan_First_Response_At__c</fullName>
+    <required>false</required>
+    <inlineHelpText>Completion retained across tier changes.</inlineHelpText>
+    <label>Taiwan first response completed at</label>
+    <type>DateTime</type>
+</CustomField>

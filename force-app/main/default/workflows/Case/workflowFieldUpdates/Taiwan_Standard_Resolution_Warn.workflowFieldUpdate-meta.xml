@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WorkflowFieldUpdate xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Taiwan_Standard_Resolution_Warn</fullName>
+    <field>Taiwan_SLA_Action__c</field>
+    <literalValue>Standard:Resolution:Warn</literalValue>
+    <name>Taiwan_Standard_Resolution_Warn</name>
+    <notifyAssignee>false</notifyAssignee>
+    <operation>Literal</operation>
+    <protected>false</protected>
+    <reevaluateOnChange>true</reevaluateOnChange>
+</WorkflowFieldUpdate>
