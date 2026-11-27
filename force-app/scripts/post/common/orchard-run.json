@@ -56,6 +56,14 @@
       "file": "case-summary-verify-page.sh",
       "timeoutMinutes": 5,
       "deploymentEffect": "none"
+    },
+    {
+      "id": "taiwan-service-hours-protected-merge",
+      "type": "bash",
+      "file": "taiwan-service-hours-merge.sh",
+      "timeoutMinutes": 15,
+      "scopeMode": "always",
+      "deploymentEffect": "metadata"
     }
   ]
 }
